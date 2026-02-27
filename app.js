@@ -563,6 +563,9 @@ function initMap() {
   // Keyboard accessibility: Leaflet map ARIA
   map.getContainer().setAttribute('role', 'application');
   map.getContainer().setAttribute('aria-label', currentLang === 'ja' ? 'インタラクティブ防災マップ' : 'Interactive hazard map');
+
+  // Load and display all shelter names on map
+  loadAndShowAllShelters();
 }
 
 async function placeUser(lat, lng) {
@@ -580,6 +583,7 @@ async function placeUser(lat, lng) {
   userMarker = L.marker([lat, lng], { icon, alt: '現在地' }).addTo(map);
   userMarker.bindPopup('<div class="pop-inner"><div class="pop-title">📍 ' + (currentLang === 'ja' ? '現在地' : currentLang === 'en' ? 'Your Location' : '当前位置') + '</div></div>');
   if (selectedShelter) await drawRoute(lat, lng, selectedShelter.lat, selectedShelter.lng);
+  renderRiskSummary(lat, lng);
 }
 
 function addShelterPin(lat, lng, name, distKm, isSelected, accessible) {
@@ -840,11 +844,13 @@ function renderShelterResults(shelters) {
     item.setAttribute('role', 'listitem');
     item.dataset.lat = s.lat;
     item.dataset.lng = s.lng;
+    const riskBadges = getRiskBadgesHTML(s.lat, s.lng);
     item.innerHTML =
       '<div class="si-icon" aria-hidden="true">' + (s.demo ? '🏫' : '🏛') + '</div>' +
       '<div class="si-body">' +
         '<span class="si-name">' + s.name + a11yBadge + demoTag + '</span>' +
         '<span class="si-meta">' + t().walkMin + minsEst + (currentLang === 'zh' ? '分钟' : t().arrivalUnit) + ' · ' + distTxt + '</span>' +
+        (riskBadges ? '<div class="si-risks">' + riskBadges + '</div>' : '') +
       '</div>' +
       '<div class="si-dist" aria-label="距離 ' + distTxt + '">' + distNum + '<span class="si-dist-unit">' + distUnit + '</span></div>' +
       '<button class="btn-route" aria-label="' + s.name + 'を選択">' + t().selectBtn + '</button>';
@@ -894,6 +900,151 @@ function toggleRisk(type) {
   }
 }
 
+/* ── Risk Assessment (被害予想) ────────────────────────────── */
+function assessLocationRisk(lat, lng) {
+  const T = t();
+  const results = {};
+  for (const [type, data] of Object.entries(RISK)) {
+    let maxRisk = 0;
+    for (const pt of data.pts) {
+      const [plat, plng, v] = pt;
+      const d = calcDist(lat, lng, plat, plng);
+      const radiusKm = (370 + v * 280) / 1000;
+      if (d <= radiusKm * 2) {
+        const risk = v * Math.max(0, 1 - d / (radiusKm * 2));
+        maxRisk = Math.max(maxRisk, risk);
+      }
+    }
+    if (maxRisk > 0.05) {
+      results[type] = {
+        level: maxRisk,
+        label: maxRisk > 0.6 ? T.riskHigh : maxRisk > 0.3 ? T.riskMid : T.riskLow,
+        name: T.risk[type],
+      };
+    }
+  }
+  return results;
+}
+
+function renderRiskSummary(lat, lng) {
+  const risks = assessLocationRisk(lat, lng);
+  const el = document.getElementById('risk-summary');
+  if (!el) return;
+  const T = t();
+  if (Object.keys(risks).length === 0) {
+    el.innerHTML = '<div class="risk-ok">' + (currentLang === 'ja' ? '✅ この地点で特定されたリスクはありません' : currentLang === 'en' ? '✅ No identified risks at this location' : '✅ 该地点未发现风险') + '</div>';
+    el.style.display = 'block';
+    return;
+  }
+  let html = '<div class="risk-summary-title">' + (currentLang === 'ja' ? '⚠ この地点の被害予想' : currentLang === 'en' ? '⚠ Risk Assessment' : '⚠ 该地点受灾预测') + '</div>';
+  for (const [type, info] of Object.entries(risks)) {
+    const cls = info.level > 0.6 ? 'danger' : info.level > 0.3 ? 'warn' : 'low';
+    html += '<div class="risk-badge-row risk-' + cls + '">' +
+      '<span class="risk-type-name">' + info.name + '</span>' +
+      '<span class="risk-level-badge">' + info.label + '</span>' +
+    '</div>';
+  }
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+
+function getRiskBadgesHTML(lat, lng) {
+  const risks = assessLocationRisk(lat, lng);
+  if (Object.keys(risks).length === 0) return '';
+  return Object.entries(risks).map(([type, info]) => {
+    const cls = info.level > 0.6 ? 'danger' : info.level > 0.3 ? 'warn' : 'low';
+    return '<span class="si-risk si-risk-' + cls + '">' + info.name + '</span>';
+  }).join('');
+}
+
+function renderResultRisk() {
+  const el = document.getElementById('result-risk');
+  if (!el || !selectedShelter) return;
+  const userRisks = userLatLng ? assessLocationRisk(userLatLng.lat, userLatLng.lng) : {};
+  const shelterRisks = assessLocationRisk(selectedShelter.lat, selectedShelter.lng);
+  const T = t();
+
+  let html = '<div class="risk-result-title">' + (currentLang === 'ja' ? '🗺 被害予想マップ' : currentLang === 'en' ? '🗺 Damage Forecast' : '🗺 受灾预测') + '</div>';
+
+  if (userLatLng && Object.keys(userRisks).length > 0) {
+    html += '<div class="risk-result-section"><div class="risk-result-label">' + (currentLang === 'ja' ? '📍 現在地のリスク' : currentLang === 'en' ? '📍 Your Location Risk' : '📍 当前位置风险') + '</div>';
+    for (const [type, info] of Object.entries(userRisks)) {
+      const cls = info.level > 0.6 ? 'danger' : info.level > 0.3 ? 'warn' : 'low';
+      html += '<div class="risk-badge-row risk-' + cls + '"><span class="risk-type-name">' + info.name + '</span><span class="risk-level-badge">' + info.label + '</span></div>';
+    }
+    html += '</div>';
+  }
+
+  if (Object.keys(shelterRisks).length > 0) {
+    html += '<div class="risk-result-section"><div class="risk-result-label">' + (currentLang === 'ja' ? '🏫 避難所周辺のリスク' : currentLang === 'en' ? '🏫 Shelter Area Risk' : '🏫 避难所周围风险') + '</div>';
+    for (const [type, info] of Object.entries(shelterRisks)) {
+      const cls = info.level > 0.6 ? 'danger' : info.level > 0.3 ? 'warn' : 'low';
+      html += '<div class="risk-badge-row risk-' + cls + '"><span class="risk-type-name">' + info.name + '</span><span class="risk-level-badge">' + info.label + '</span></div>';
+    }
+    html += '</div>';
+  }
+
+  if (Object.keys(userRisks).length === 0 && Object.keys(shelterRisks).length === 0) {
+    html += '<div class="risk-ok">' + (currentLang === 'ja' ? '✅ 現在地・避難所ともにリスクは低い地域です' : currentLang === 'en' ? '✅ Low risk area for both locations' : '✅ 两地均为低风险区域') + '</div>';
+  }
+
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+
+/* ── All Shelter Names on Map ─────────────────────────────── */
+let allShelterLayerGroup = null;
+
+async function loadAndShowAllShelters() {
+  if (!_tokyoShelters) {
+    try {
+      const SHELTER_CSV = 'https://www.opendata.metro.tokyo.lg.jp/soumu/130001_evacuation_center.csv';
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 12000);
+      const res = await fetch(SHELTER_CSV, { signal: ac.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error('CSV HTTP ' + res.status);
+      const buf = await res.arrayBuffer();
+      _tokyoShelters = parseTokyoCSV(new TextDecoder('shift-jis').decode(buf));
+    } catch(err) {
+      console.warn('[CSV Load]', err.message);
+      _tokyoShelters = [];
+    }
+  }
+  updateMapShelters();
+  map.on('moveend', updateMapShelters);
+}
+
+function updateMapShelters() {
+  if (allShelterLayerGroup) map.removeLayer(allShelterLayerGroup);
+  allShelterLayerGroup = L.layerGroup();
+  const zoom = map.getZoom();
+  if (zoom < 13 || !_tokyoShelters || !_tokyoShelters.length) {
+    allShelterLayerGroup.addTo(map);
+    return;
+  }
+  const bounds = map.getBounds();
+  const visible = _tokyoShelters.filter(s => bounds.contains([s.lat, s.lng]));
+  const showLabels = zoom >= 15;
+  visible.forEach(s => {
+    const m = L.circleMarker([s.lat, s.lng], {
+      radius: zoom >= 15 ? 5 : 3,
+      fillColor: '#00A86B',
+      fillOpacity: 0.7,
+      color: '#fff',
+      weight: 1.5,
+    });
+    m.bindTooltip(s.name, {
+      permanent: showLabels,
+      direction: 'right',
+      offset: [6, 0],
+      className: 'shelter-name-label',
+    });
+    allShelterLayerGroup.addLayer(m);
+  });
+  allShelterLayerGroup.addTo(map);
+}
+
 /* ── Simulation ──────────────────────────────────────────── */
 let speed = 'fast', disaster = 'flood';
 const SPEEDS  = { fast:5.0, normal:3.5, slow:2.0 };
@@ -937,6 +1088,7 @@ function calcResult() {
   document.getElementById('adv-list').innerHTML = tier.advice.map(a =>
     '<div class="adv-item"><span class="adv-icon" aria-hidden="true">' + a.i + '</span><span class="adv-text">' + a.t + '</span></div>'
   ).join('');
+  renderResultRisk();
   nav('results');
 }
 

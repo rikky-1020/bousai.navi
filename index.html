@@ -105,6 +105,7 @@
         <div class="sheet-headline" data-i18n="searchBtn" aria-label="現在地周辺の避難所">📍 現在地周辺の避難所</div>
         <button class="btn-cta" onclick="searchShelters()" data-i18n="searchBtn" aria-label="近くの避難所を自動検索">🔍 近くの避難所を自動検索</button>
         <button class="btn-sec" onclick="goSim()" data-i18n="simBtn" aria-label="避難シミュレーションを始める">🏃 避難シミュレーションを始める →</button>
+        <div id="risk-summary" style="display:none" role="region" aria-label="被害予想"></div>
         <div id="data-credit" aria-label="データ出典">避難所データ：東京都オープンデータ (CC BY 4.0)</div>
       </div>
 
@@ -244,6 +245,9 @@
           <div class="tl-limit" id="tl-limit"></div>
         </div>
       </div>
+
+      <!-- Risk Assessment -->
+      <div id="result-risk" class="risk-result-card" style="display:none" role="region" aria-label="被害予想"></div>
 
       <!-- Advice -->
       <div class="adv-card" role="region" aria-label="防災アドバイス">
