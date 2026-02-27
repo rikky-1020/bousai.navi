@@ -1112,19 +1112,38 @@ function renderResultRisk() {
 let allShelterLayerGroup = null;
 
 async function loadAndShowAllShelters() {
-  if (!_tokyoShelters) {
+  if (!_tokyoShelters || !_tokyoShelters.length) {
+    // Try Tokyo CSV first
     try {
       const SHELTER_CSV = 'https://www.opendata.metro.tokyo.lg.jp/soumu/130001_evacuation_center.csv';
       const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), 12000);
+      const timer = setTimeout(() => ac.abort(), 15000);
       const res = await fetch(SHELTER_CSV, { signal: ac.signal });
       clearTimeout(timer);
       if (!res.ok) throw new Error('CSV HTTP ' + res.status);
       const buf = await res.arrayBuffer();
       _tokyoShelters = parseTokyoCSV(new TextDecoder('shift-jis').decode(buf));
+      console.log('[Shelters] CSV loaded:', _tokyoShelters.length, 'shelters');
     } catch(err) {
-      console.warn('[CSV Load]', err.message);
+      console.warn('[Shelters] CSV failed:', err.message, '- trying Overpass fallback');
       _tokyoShelters = [];
+    }
+    // Fallback: Overpass API if CSV failed or empty
+    if (!_tokyoShelters.length) {
+      try {
+        const q = `[out:json][timeout:20];node["amenity"="shelter"](35.50,139.05,35.93,139.92);out body;`;
+        const res = await fetch('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(q));
+        if (res.ok) {
+          const data = await res.json();
+          _tokyoShelters = (data.elements || [])
+            .filter(e => e.lat && e.lon)
+            .map(e => ({ name: e.tags?.name || '避難場所', lat: e.lat, lng: e.lon, accessible: false }));
+          console.log('[Shelters] Overpass loaded:', _tokyoShelters.length, 'shelters');
+        }
+      } catch(err2) {
+        console.warn('[Shelters] Overpass also failed:', err2.message);
+        _tokyoShelters = [];
+      }
     }
   }
   updateMapShelters();
@@ -1134,19 +1153,23 @@ async function loadAndShowAllShelters() {
 function updateMapShelters() {
   if (allShelterLayerGroup) map.removeLayer(allShelterLayerGroup);
   allShelterLayerGroup = L.layerGroup();
-  const zoom = map.getZoom();
-  if (zoom < 13 || !_tokyoShelters || !_tokyoShelters.length) {
+  if (!_tokyoShelters || !_tokyoShelters.length) {
     allShelterLayerGroup.addTo(map);
     return;
   }
+  const zoom = map.getZoom();
   const bounds = map.getBounds();
   const visible = _tokyoShelters.filter(s => bounds.contains([s.lat, s.lng]));
-  const showLabels = zoom >= 15;
-  visible.forEach(s => {
+  // Limit markers at low zoom to avoid performance issues
+  const maxMarkers = zoom < 13 ? 200 : 500;
+  const toShow = visible.slice(0, maxMarkers);
+  const showLabels = zoom >= 14;
+  toShow.forEach(s => {
+    const r = zoom >= 15 ? 6 : zoom >= 13 ? 4 : 3;
     const m = L.circleMarker([s.lat, s.lng], {
-      radius: zoom >= 15 ? 5 : 3,
+      radius: r,
       fillColor: '#00A86B',
-      fillOpacity: 0.7,
+      fillOpacity: 0.8,
       color: '#fff',
       weight: 1.5,
     });
