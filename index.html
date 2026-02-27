@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+
+  <!-- PWA / Theme -->
+  <meta name="theme-color" content="#FF5C00">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="防災ナビ">
+  <link rel="manifest" href="./manifest.json">
+
+  <!-- SEO / OGP -->
+  <title>東京防災ナビ — 避難所検索・ハザードマップ・避難シミュレーション</title>
+  <meta name="description" content="東京都の最寄り避難所をリアルタイム検索。ハザードマップと避難シミュレーションで、いざという時に備えよう。">
+  <meta name="keywords" content="防災,避難所,ハザードマップ,東京,地震,水害,津波,避難シミュレーション">
+  <meta property="og:title" content="東京防災ナビ">
+  <meta property="og:description" content="最寄り避難所をリアルタイム検索。ハザードマップ・避難シミュレーション対応。">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="icon" href="./icons/icon-192.png">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Zen+Kaku+Gothic+New:wght@400;700;900&display=swap" rel="stylesheet">
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="./app.css">
+
+  <noscript><style>body{display:flex;align-items:center;justify-content:center;height:100vh;font-size:1.2rem;font-family:sans-serif}body::after{content:"JavaScriptを有効にしてください / Please enable JavaScript"}</style></noscript>
+</head>
+<body>
+
+<!-- Skip link for keyboard/screen reader users -->
+<a class="skip-link" href="#main-content">メインコンテンツへ / Skip to main content</a>
+
+<div id="app" role="main" id="main-content">
+
+  <!-- TOPBAR -->
+  <div id="topbar" role="banner">
+    <div class="logo-icon" aria-hidden="true">🗺</div>
+    <div class="logo-text" aria-label="東京防災ナビ">東京<span>防災</span>ナビ</div>
+
+    <!-- Language switcher -->
+    <div id="lang-bar" role="group" aria-label="言語選択 / Language">
+      <button class="lang-btn active" data-lang="ja" onclick="setLang('ja')" aria-pressed="true" aria-label="日本語">日</button>
+      <button class="lang-btn" data-lang="en" onclick="setLang('en')" aria-pressed="false" aria-label="English">EN</button>
+      <button class="lang-btn" data-lang="zh" onclick="setLang('zh')" aria-pressed="false" aria-label="中文">中</button>
+    </div>
+  </div>
+
+  <!-- ACCESSIBILITY BAR -->
+  <div id="a11y-bar" role="toolbar" aria-label="アクセシビリティ設定">
+    <button class="a11y-btn" id="font-decrease" onclick="decreaseFontSize()" aria-label="文字を小さく" title="文字を小さく">A-</button>
+    <button class="a11y-btn" id="font-increase" onclick="increaseFontSize()" aria-label="文字を大きく" title="文字を大きく">A+</button>
+    <button class="a11y-btn" id="hc-btn" onclick="toggleHighContrast()" aria-pressed="false" aria-label="ハイコントラスト切替" title="ハイコントラスト">◑ コントラスト</button>
+    <div class="sep"></div>
+    <small style="font-size:.6rem;color:var(--ink4)">v3.0.0</small>
+  </div>
+
+  <!-- TICKER -->
+  <div id="ticker" role="marquee" aria-live="off">
+    <div class="tick-badge" aria-hidden="true">⚠ 注意</div>
+    <div class="tick-scroll">
+      <div class="tick-text">実際の災害時は東京都・各区の公式情報を必ず確認してください。避難は早めの判断が命を守ります。&emsp;&emsp;In a real emergency, always follow official Tokyo Metropolitan Government guidance.&emsp;&emsp;发生真实灾害时，请务必确认官方信息。</div>
+    </div>
+  </div>
+
+  <!-- VIEW: MAP -->
+  <div class="view active" id="view-map" aria-hidden="false" aria-label="ハザードマップ">
+    <div id="map" aria-label="インタラクティブ防災マップ"></div>
+
+    <!-- Left FABs -->
+    <div class="fab-col" id="fab-col-top">
+      <div class="fab" id="fab-gps" onclick="openLocSearch()" title="場所を検索" role="button" tabindex="0" aria-label="現在地を設定" onkeydown="if(event.key==='Enter'||event.key===' ')openLocSearch()">🔍</div>
+    </div>
+    <div class="fab-col" id="fab-col-bottom">
+      <div class="fab" id="fab-sim" onclick="goSim()" title="シミュレーション" role="button" tabindex="0" aria-label="避難シミュレーション" onkeydown="if(event.key==='Enter'||event.key===' ')goSim()">🏃</div>
+    </div>
+
+    <!-- Risk FABs right -->
+    <div id="risk-group" role="group" aria-label="ハザードレイヤー">
+      <div class="risk-fab" data-type="flood"   onclick="toggleRisk('flood')"   role="button" tabindex="0" aria-pressed="false" aria-label="水害リスク" onkeydown="if(event.key==='Enter'||event.key===' ')toggleRisk('flood')">🌊<span class="rf-label" data-i18n="risk.flood">水害</span></div>
+      <div class="risk-fab" data-type="quake"   onclick="toggleRisk('quake')"   role="button" tabindex="0" aria-pressed="false" aria-label="倒壊リスク" onkeydown="if(event.key==='Enter'||event.key===' ')toggleRisk('quake')">🏚<span class="rf-label" data-i18n="risk.quake">倒壊</span></div>
+      <div class="risk-fab" data-type="liq"     onclick="toggleRisk('liq')"     role="button" tabindex="0" aria-pressed="false" aria-label="液状化リスク" onkeydown="if(event.key==='Enter'||event.key===' ')toggleRisk('liq')">💧<span class="rf-label" data-i18n="risk.liq">液状化</span></div>
+      <div class="risk-fab" data-type="tsunami" onclick="toggleRisk('tsunami')" role="button" tabindex="0" aria-pressed="false" aria-label="津波リスク" onkeydown="if(event.key==='Enter'||event.key===' ')toggleRisk('tsunami')">🌊<span class="rf-label" data-i18n="risk.tsunami">津波</span></div>
+    </div>
+
+    <!-- Bottom Sheet -->
+    <div id="bottom-sheet" aria-label="避難所パネル" aria-expanded="false">
+      <div id="sheet-handle" onclick="toggleSheet()" role="button" tabindex="0" aria-label="パネルを開閉" onkeydown="if(event.key==='Enter'||event.key===' ')toggleSheet()">
+        <div id="sheet-handle-bar"></div>
+      </div>
+
+      <!-- DEFAULT -->
+      <div class="sheet-view active" id="sv-default">
+        <div class="sheet-headline" data-i18n="searchBtn" aria-label="現在地周辺の避難所">📍 現在地周辺の避難所</div>
+        <button class="btn-cta" onclick="searchShelters()" data-i18n="searchBtn" aria-label="近くの避難所を自動検索">🔍 近くの避難所を自動検索</button>
+        <button class="btn-sec" onclick="goSim()" data-i18n="simBtn" aria-label="避難シミュレーションを始める">🏃 避難シミュレーションを始める →</button>
+        <div id="data-credit" aria-label="データ出典">避難所データ：東京都オープンデータ (CC BY 4.0)</div>
+      </div>
+
+      <!-- SEARCHING -->
+      <div class="sheet-view" id="sv-searching" aria-live="polite" aria-busy="true">
+        <div class="search-spinner" role="status" aria-label="検索中"></div>
+        <div class="search-msg" data-i18n="searching">避難所を検索中...</div>
+        <div class="search-sub" id="search-sub-msg"></div>
+      </div>
+
+      <!-- RESULTS -->
+      <div class="sheet-view" id="sv-results">
+        <div class="res-header">
+          <div class="res-title"><span id="res-num" aria-live="polite">0</span><span data-i18n="sheltersFound"> 件の避難所が見つかりました</span></div>
+          <button class="res-close" onclick="closeResults()" data-i18n="closeBtn" aria-label="閉じる">✕ 閉じる</button>
+        </div>
+        <div id="shelter-list" role="list" aria-label="避難所リスト"></div>
+      </div>
+
+      <!-- ERROR -->
+      <div class="sheet-view" id="sv-error" role="alert">
+        <div class="err-icon" aria-hidden="true">⚠️</div>
+        <div class="err-msg" id="err-msg"></div>
+        <div class="err-sub" id="err-sub"></div>
+        <button class="btn-cta" onclick="searchShelters()">🔄 再試行</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW: SIMULATION -->
+  <div class="view" id="view-sim" aria-hidden="true" aria-label="避難シミュレーション">
+    <div class="view-header">
+      <button class="back-btn" onclick="nav('map')" aria-label="地図に戻る">← <span data-i18n="backMapBtn">🗺 ハザードマップに戻る</span></button>
+      <div class="view-step" data-i18n="simStep">STEP 1/2</div>
+    </div>
+    <div id="sim-scroll">
+      <div class="sim-title" data-i18n="simTitle">🧭 避難シミュレーション</div>
+
+      <!-- 未選択 -->
+      <div id="sim-no-shelter" onclick="nav('map')" role="button" tabindex="0" aria-label="地図に戻って避難所を選択"
+           style="background:var(--s2);border:1.5px dashed var(--ink4);border-radius:var(--r);padding:18px 16px;margin-bottom:13px;text-align:center;cursor:pointer;">
+        <div style="font-size:2rem;margin-bottom:8px" aria-hidden="true">🏫</div>
+        <div style="font-size:.88rem;font-weight:900;color:var(--ink2);margin-bottom:4px" data-i18n="noShelter">避難所が選択されていません</div>
+        <div style="font-size:.72rem;color:var(--ink3)" data-i18n="noShelterSub">マップに戻って「近くの避難所を自動検索」をタップしてください</div>
+      </div>
+
+      <!-- 選択済み -->
+      <div id="sim-shelter-card" class="sel-shelter" style="display:none" aria-label="選択された避難所">
+        <div class="ss-icon" aria-hidden="true">🏫</div>
+        <div>
+          <div class="ss-label" data-i18n="destLabel">🎯 避難先</div>
+          <div class="ss-name" id="sim-shelter-name">-</div>
+          <div class="ss-dist" id="sim-shelter-dist-val">-</div>
+        </div>
+      </div>
+
+      <!-- Route bar -->
+      <div class="route-bar" aria-label="ルート情報">
+        <div class="rline-start" aria-hidden="true">📍</div>
+        <div class="rline-line" aria-hidden="true"><div class="rline-km" id="rline-km">- KM</div></div>
+        <div class="rline-end" aria-hidden="true">🏫</div>
+      </div>
+
+      <!-- Disaster type -->
+      <div class="sim-section">
+        <div class="sim-label" data-i18n="disasterLabel">想定する災害</div>
+        <div class="chip-row" role="group" aria-label="災害種別選択">
+          <div class="chip on" data-disaster="flood" onclick="pickDisaster(this,'flood')" role="radio" tabindex="0" aria-checked="true" onkeydown="if(event.key==='Enter'||event.key===' '){pickDisaster(this,'flood');this.setAttribute('aria-checked','true')}"><span aria-hidden="true">🌊</span><span class="chip-label" data-i18n="disasters.flood">水害</span></div>
+          <div class="chip" data-disaster="quake" onclick="pickDisaster(this,'quake')" role="radio" tabindex="0" aria-checked="false" onkeydown="if(event.key==='Enter'||event.key===' '){pickDisaster(this,'quake')}"><span aria-hidden="true">🏚</span><span class="chip-label" data-i18n="disasters.quake">地震</span></div>
+          <div class="chip" data-disaster="tsunami" onclick="pickDisaster(this,'tsunami')" role="radio" tabindex="0" aria-checked="false" onkeydown="if(event.key==='Enter'||event.key===' '){pickDisaster(this,'tsunami')}"><span aria-hidden="true">🌊</span><span class="chip-label" data-i18n="disasters.tsunami">津波</span></div>
+        </div>
+      </div>
+
+      <!-- Speed -->
+      <div class="sim-section">
+        <div class="sim-label" data-i18n="speedLabel">歩くスピード</div>
+        <div class="speed-row" role="group" aria-label="歩行速度選択">
+          <div class="speed-card on" data-speed="fast" onclick="pickSpeed(this,'fast')" role="radio" tabindex="0" aria-checked="true">
+            <div class="sp-icon" aria-hidden="true">🏃</div>
+            <div class="sp-name">早歩き（いそぎ）</div>
+            <div class="sp-sub">時速 5.0km</div>
+          </div>
+          <div class="speed-card" data-speed="normal" onclick="pickSpeed(this,'normal')" role="radio" tabindex="0" aria-checked="false">
+            <div class="sp-icon" aria-hidden="true">🚶</div>
+            <div class="sp-name">ふつうに歩く</div>
+            <div class="sp-sub">時速 3.5km</div>
+          </div>
+          <div class="speed-card" data-speed="slow" onclick="pickSpeed(this,'slow')" role="radio" tabindex="0" aria-checked="false">
+            <div class="sp-icon" aria-hidden="true">🦯</div>
+            <div class="sp-name">お年寄り・ケガあり</div>
+            <div class="sp-sub">時速 2.0km</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-cta btn-start" onclick="calcResult()" data-i18n="startBtn" aria-label="シミュレーション開始">🚨 シミュレーション開始！</button>
+    </div>
+  </div>
+
+  <!-- VIEW: RESULTS -->
+  <div class="view" id="view-results" aria-hidden="true" aria-label="シミュレーション結果">
+    <div class="view-header">
+      <button class="back-btn" onclick="nav('sim')" aria-label="シミュレーションに戻る">← <span data-i18n="retryBtn">🔄 条件を変えてもう一度試す</span></button>
+      <div class="view-step" data-i18n="resultStep">STEP 2/2</div>
+    </div>
+    <div id="results-scroll">
+      <div class="res-view-title" data-i18n="resultTitle">📊 シミュレーション結果</div>
+      <div class="result-hero" id="result-hero" role="region" aria-label="到達予想時間">
+        <div class="rh-icon" id="rh-icon" aria-hidden="true">⏳</div>
+        <div class="rh-label" data-i18n="arrivalLabel">⏱ 避難所まで 予想到達時間</div>
+        <div class="rh-time" id="rh-time" aria-live="polite">
+          <span id="rh-mins" aria-label="到達予想時間">--</span>
+          <span class="rh-unit" data-i18n="arrivalUnit">分</span>
+        </div>
+        <div class="xp-row">
+          <span class="xp-badge" aria-label="獲得ポイント"><span id="xp-pts">+0</span> XP</span>
+          <span class="xp-label" data-i18n="xpLabel">MISSION COMPLETE</span>
+        </div>
+      </div>
+
+      <div class="feed-card" id="feed-card" role="alert" aria-live="polite"></div>
+
+      <div class="stats-row" role="list" aria-label="シミュレーション統計">
+        <div class="stat-box" role="listitem"><span class="sb-icon" aria-hidden="true">🔥</span><span class="sb-val" id="r-cal">-</span><div class="sb-unit">kcal</div><div class="sb-lbl" data-i18n="calLabel">消費カロリー</div></div>
+        <div class="stat-box" role="listitem"><span class="sb-icon" aria-hidden="true">📏</span><span class="sb-val" id="r-dist">-</span><div class="sb-unit">km</div><div class="sb-lbl" data-i18n="distLabel">避難距離</div></div>
+        <div class="stat-box" role="listitem"><span class="sb-icon" aria-hidden="true">👣</span><span class="sb-val" id="r-steps">-</span><div class="sb-unit">歩</div><div class="sb-lbl" data-i18n="stepsLabel">歩数目安</div></div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="timeline-card" role="region" aria-label="タイムライン">
+        <div class="tl-label" data-i18n="tlLabel">⏱ タイムライン — 危険が始まるまでの時間</div>
+        <div class="tl-track" aria-label="危険度バー">
+          <div class="tl-fill" id="tl-fill"></div>
+        </div>
+        <div class="tl-labels">
+          <div class="tl-you" id="tl-you" aria-live="polite"></div>
+          <div class="tl-limit" id="tl-limit"></div>
+        </div>
+      </div>
+
+      <!-- Advice -->
+      <div class="adv-card" role="region" aria-label="防災アドバイス">
+        <div class="adv-title" data-i18n="advLabel">💡 防災アドバイス</div>
+        <div id="adv-list" role="list"></div>
+      </div>
+
+      <div class="res-actions">
+        <button class="btn-cta" onclick="doShare()" data-i18n="shareBtn" aria-label="結果をシェア">📤 結果をシェア</button>
+        <button class="btn-sec" onclick="nav('map')" data-i18n="backMapBtn" aria-label="ハザードマップに戻る">🗺 ハザードマップに戻る</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOCATION MODAL -->
+  <div id="loc-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="loc-title" aria-hidden="true">
+    <div id="loc-backdrop" onclick="closeLocSearch()"></div>
+    <div id="loc-panel">
+      <div id="loc-header">
+        <div id="loc-title" data-i18n="locTitle">📍 現在地を設定</div>
+        <button id="loc-close" onclick="closeLocSearch()" aria-label="閉じる">✕</button>
+      </div>
+      <div id="loc-body">
+        <div id="loc-search-wrap">
+          <span id="loc-search-icon" aria-hidden="true">🔍</span>
+          <input id="loc-input" type="search" data-i18n-ph="locPlaceholder"
+                 placeholder="住所・駅名・ランドマークを入力（例：渋谷駅）"
+                 autocomplete="off" autocorrect="off" spellcheck="false"
+                 aria-label="場所を検索"
+                 oninput="onLocInput()" onkeydown="onLocKey(event)">
+          <button id="loc-clear" onclick="clearLocInput()" aria-label="入力をクリア" style="display:none">✕</button>
+        </div>
+        <div id="loc-suggestions" role="listbox" aria-label="検索候補"></div>
+        <div id="loc-gps-row" onclick="useGPS()" role="button" tabindex="0" aria-label="GPSで現在地を取得" onkeydown="if(event.key==='Enter'||event.key===' ')useGPS()">
+          <span id="loc-gps-icon" aria-hidden="true">📡</span>
+          <div>
+            <div id="loc-gps-label" data-i18n="gpsLabel">GPSで現在地を取得</div>
+            <div id="loc-gps-sub" data-i18n="gpsSub">位置情報の許可が必要です</div>
+          </div>
+        </div>
+        <div id="loc-mapctr-row" onclick="useMapCenter()" role="button" tabindex="0" aria-label="地図の中心を現在地として使う" onkeydown="if(event.key==='Enter'||event.key===' ')useMapCenter()">
+          <span aria-hidden="true">🗺</span>
+          <div>
+            <div id="loc-mapctr-label" data-i18n="mapCtrLabel">地図の中心を現在地として使う</div>
+            <div id="loc-mapctr-sub" data-i18n="mapCtrSub">地図をスクロールして場所を合わせてください</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
