@@ -1137,7 +1137,7 @@ async function loadAndShowAllShelters() {
           const data = await res.json();
           _tokyoShelters = (data.elements || [])
             .filter(e => e.lat && e.lon)
-            .map(e => ({ name: e.tags?.name || '避難場所', lat: e.lat, lng: e.lon, accessible: false }));
+            .map(e => ({ name: e.tags?.['name:ja'] || e.tags?.name || '', lat: e.lat, lng: e.lon, accessible: false }));
           console.log('[Shelters] Overpass loaded:', _tokyoShelters.length, 'shelters');
         }
       } catch(err2) {
@@ -1173,12 +1173,14 @@ function updateMapShelters() {
       color: '#fff',
       weight: 1.5,
     });
-    m.bindTooltip(s.name, {
-      permanent: showLabels,
-      direction: 'right',
-      offset: [6, 0],
-      className: 'shelter-name-label',
-    });
+    if (s.name) {
+      m.bindTooltip(s.name, {
+        permanent: showLabels,
+        direction: 'right',
+        offset: [6, 0],
+        className: 'shelter-name-label',
+      });
+    }
     allShelterLayerGroup.addLayer(m);
   });
   allShelterLayerGroup.addTo(map);
