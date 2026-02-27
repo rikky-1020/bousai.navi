@@ -548,15 +548,41 @@ let selectedShelter = null;
 let _tokyoShelters = null;
 
 function initMap() {
-  const TOKYO_BOUNDS = L.latLngBounds([35.50, 139.55], [35.85, 139.95]);
+  const TOKYO_BOUNDS = L.latLngBounds([35.50, 139.05], [35.93, 139.92]);
   map = L.map('map', {
     center: DEFAULT_CENTER, zoom: 11, zoomControl: true,
-    maxBounds: TOKYO_BOUNDS.pad(0.1),
+    maxBounds: TOKYO_BOUNDS.pad(0.02),
     minZoom: 10,
+    maxBoundsViscosity: 1.0,
   });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://openstreetmap.org" rel="noopener">OpenStreetMap</a> contributors',
     maxZoom: 19,
+  }).addTo(map);
+
+  /* ── Tokyo boundary polygon (mainland, excluding islands) ── */
+  const TOKYO_BORDER = [
+    [35.898, 139.095],[35.917, 139.150],[35.900, 139.200],[35.860, 139.260],
+    [35.832, 139.320],[35.810, 139.380],[35.795, 139.420],[35.790, 139.470],
+    [35.787, 139.520],[35.792, 139.560],[35.798, 139.610],[35.800, 139.650],
+    [35.802, 139.700],[35.800, 139.750],[35.795, 139.790],[35.777, 139.830],
+    [35.747, 139.860],[35.712, 139.878],[35.672, 139.888],[35.642, 139.872],
+    [35.612, 139.852],[35.592, 139.822],[35.572, 139.792],[35.552, 139.772],
+    [35.542, 139.742],[35.550, 139.692],[35.562, 139.652],[35.572, 139.602],
+    [35.560, 139.552],[35.572, 139.502],[35.562, 139.452],[35.550, 139.412],
+    [35.532, 139.382],[35.557, 139.342],[35.582, 139.292],[35.622, 139.232],
+    [35.672, 139.172],[35.732, 139.122],[35.782, 139.092],[35.832, 139.072],
+    [35.898, 139.095],
+  ];
+  // Mask: dim everything outside Tokyo
+  const worldRect = [[90,-180],[90,180],[-90,180],[-90,-180],[90,-180]];
+  const tokyoHole = TOKYO_BORDER.slice().reverse();
+  L.polygon([worldRect, tokyoHole], {
+    fillColor: '#1a1a2e', fillOpacity: 0.35, stroke: false, interactive: false,
+  }).addTo(map);
+  // Border line around Tokyo
+  L.polyline(TOKYO_BORDER, {
+    color: '#FF5C00', weight: 3, opacity: 0.7, dashArray: '10, 5', interactive: false,
   }).addTo(map);
 
   map.on('click', e => {
