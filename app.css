@@ -156,7 +156,7 @@ html,body{height:100%;font-family:var(--fn);background:var(--bg);color:var(--ink
 }
 
 /* ── BOTTOM SHEET ────────────────────────────────────── */
-:root{--sheet-h:220px}
+:root{--sheet-h:140px}
 #bottom-sheet{
   position:absolute;bottom:0;left:0;right:0;z-index:600;
   background:var(--surface);border-top:1px solid var(--border);
@@ -179,13 +179,13 @@ html,body{height:100%;font-family:var(--fn);background:var(--bg);color:var(--ink
 .sheet-view.active{display:flex}
 
 /* DEFAULT state – CTA */
-#sv-default{padding:0 14px 20px;gap:12px}
+#sv-default{padding:0 14px 10px;gap:8px}
 .sheet-headline{
   font-size:.68rem;font-weight:900;color:var(--ink3);
   letter-spacing:.09em;text-transform:uppercase;margin-bottom:2px;
 }
 .btn-cta{
-  width:100%;padding:17px 20px;background:var(--orange);border:none;
+  width:100%;padding:12px 16px;background:var(--orange);border:none;
   border-radius:var(--r-lg);color:#fff;font-family:var(--fn);
   font-size:1.02rem;font-weight:900;cursor:pointer;letter-spacing:.02em;
   display:flex;align-items:center;justify-content:center;gap:9px;
@@ -199,7 +199,7 @@ html,body{height:100%;font-family:var(--fn);background:var(--bg);color:var(--ink
 .btn-cta:active{transform:scale(.97);box-shadow:0 2px 10px rgba(255,92,0,.3)}
 
 .btn-sec{
-  width:100%;padding:13px 16px;background:var(--s2);border:1.5px solid var(--border);
+  width:100%;padding:10px 14px;background:var(--s2);border:1.5px solid var(--border);
   border-radius:var(--r);color:var(--ink);font-family:var(--fn);
   font-size:.88rem;font-weight:700;cursor:pointer;letter-spacing:.01em;
   display:flex;align-items:center;justify-content:center;gap:8px;transition:all .18s;
