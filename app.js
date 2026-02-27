@@ -1131,13 +1131,28 @@ async function loadAndShowAllShelters() {
     // Fallback: Overpass API if CSV failed or empty
     if (!_tokyoShelters.length) {
       try {
-        const q = `[out:json][timeout:20];node["amenity"="shelter"](35.50,139.05,35.93,139.92);out body;`;
+        const bbox = '35.50,139.05,35.93,139.92';
+        const q = `[out:json][timeout:25];(
+          nwr["emergency"="assembly_point"](${bbox});
+          nwr["amenity"="shelter"](${bbox});
+          nwr["social_facility"="shelter"](${bbox});
+          nwr["shelter_type"](${bbox});
+          nwr["amenity"="school"]["name"](${bbox});
+          nwr["amenity"="community_centre"]["name"](${bbox});
+        );out center body;`;
         const res = await fetch('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(q));
         if (res.ok) {
           const data = await res.json();
+          const seen = new Set();
           _tokyoShelters = (data.elements || [])
-            .filter(e => e.lat && e.lon)
-            .map(e => ({ name: e.tags?.['name:ja'] || e.tags?.name || '', lat: e.lat, lng: e.lon, accessible: false }));
+            .map(e => {
+              const lat = e.lat || e.center?.lat;
+              const lng = e.lon || e.center?.lon;
+              const name = e.tags?.['name:ja'] || e.tags?.name || '';
+              return { name, lat, lng, accessible: e.tags?.wheelchair === 'yes' };
+            })
+            .filter(s => s.lat && s.lng && s.name)
+            .filter(s => { const k = s.name+s.lat; if(seen.has(k)) return false; seen.add(k); return true; });
           console.log('[Shelters] Overpass loaded:', _tokyoShelters.length, 'shelters');
         }
       } catch(err2) {
