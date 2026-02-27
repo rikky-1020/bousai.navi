@@ -538,7 +538,7 @@ function useMapCenter() {
 }
 
 /* ── Map ─────────────────────────────────────────────────── */
-const DEFAULT_CENTER = [35.6530, 139.6600];
+const DEFAULT_CENTER = [35.6800, 139.7500];
 let map, userMarker, routeLine;
 let userLatLng    = null;
 let shelterMarkers = [];
@@ -548,7 +548,12 @@ let selectedShelter = null;
 let _tokyoShelters = null;
 
 function initMap() {
-  map = L.map('map', { center: DEFAULT_CENTER, zoom: 14, zoomControl: true });
+  const TOKYO_BOUNDS = L.latLngBounds([35.50, 139.55], [35.85, 139.95]);
+  map = L.map('map', {
+    center: DEFAULT_CENTER, zoom: 11, zoomControl: true,
+    maxBounds: TOKYO_BOUNDS.pad(0.1),
+    minZoom: 10,
+  });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://openstreetmap.org" rel="noopener">OpenStreetMap</a> contributors',
     maxZoom: 19,
