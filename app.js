@@ -1343,59 +1343,49 @@ async function fetchRealtimeDisasterInfo() {
 }
 
 function parseJmaWarnings(data) {
-  const alerts = [];
-  const warnTypes = {
-    '大雨': { risk: 'flood', boost: 0.3, level: 'warn' },
-    '洪水': { risk: 'flood', boost: 0.4, level: 'warn' },
-    '暴風': { risk: 'quake', boost: 0.1, level: 'warn' },
-    '波浪': { risk: 'tsunami', boost: 0.2, level: 'warn' },
-    '高潮': { risk: 'tsunami', boost: 0.3, level: 'warn' },
-    '土砂災害': { risk: 'landslide', boost: 0.4, level: 'danger' },
-  };
-  const specialWarn = {
-    '大雨特別警報': { risk: 'flood', boost: 0.5, level: 'danger' },
-    '大雨警報': { risk: 'flood', boost: 0.3, level: 'danger' },
-    '洪水警報': { risk: 'flood', boost: 0.4, level: 'danger' },
-    '土砂災害警戒情報': { risk: 'landslide', boost: 0.5, level: 'danger' },
-    '暴風警報': { risk: 'quake', boost: 0.15, level: 'warn' },
-    '高潮警報': { risk: 'tsunami', boost: 0.35, level: 'danger' },
-    '津波注意報': { risk: 'tsunami', boost: 0.4, level: 'danger' },
-    '津波警報': { risk: 'tsunami', boost: 0.5, level: 'danger' },
+  // JMA APIはコード番号で返すのでテーブルで変換
+  const WARN_CODES = {
+    '02': { name:'暴風雪警報',   risk:'flood',     boost:0.2,  level:'danger' },
+    '03': { name:'大雨警報',     risk:'flood',     boost:0.3,  level:'danger' },
+    '04': { name:'洪水警報',     risk:'flood',     boost:0.4,  level:'danger' },
+    '05': { name:'暴風警報',     risk:'quake',     boost:0.15, level:'warn' },
+    '06': { name:'大雪警報',     risk:'flood',     boost:0.1,  level:'warn' },
+    '07': { name:'波浪警報',     risk:'tsunami',   boost:0.25, level:'warn' },
+    '08': { name:'高潮警報',     risk:'tsunami',   boost:0.35, level:'danger' },
+    '10': { name:'大雨注意報',   risk:'flood',     boost:0.2,  level:'warn' },
+    '12': { name:'大雪注意報',   risk:'flood',     boost:0.05, level:'warn' },
+    '13': { name:'風雪注意報',   risk:'flood',     boost:0.1,  level:'warn' },
+    '14': { name:'雷注意報',     risk:'quake',     boost:0.05, level:'warn' },
+    '15': { name:'強風注意報',   risk:'quake',     boost:0.1,  level:'warn' },
+    '16': { name:'波浪注意報',   risk:'tsunami',   boost:0.15, level:'warn' },
+    '17': { name:'融雪注意報',   risk:'flood',     boost:0.15, level:'warn' },
+    '18': { name:'洪水注意報',   risk:'flood',     boost:0.3,  level:'warn' },
+    '19': { name:'高潮注意報',   risk:'tsunami',   boost:0.2,  level:'warn' },
+    '20': { name:'濃霧注意報',   risk:'flood',     boost:0.0,  level:'warn' },
+    '21': { name:'乾燥注意報',   risk:'quake',     boost:0.0,  level:'warn' },
+    '22': { name:'なだれ注意報', risk:'landslide', boost:0.3,  level:'warn' },
+    '23': { name:'低温注意報',   risk:'flood',     boost:0.0,  level:'warn' },
+    '24': { name:'霜注意報',     risk:'flood',     boost:0.0,  level:'warn' },
+    '25': { name:'着氷注意報',   risk:'flood',     boost:0.0,  level:'warn' },
+    '26': { name:'着雪注意報',   risk:'flood',     boost:0.0,  level:'warn' },
+    '32': { name:'土砂災害警戒情報', risk:'landslide', boost:0.5, level:'danger' },
   };
 
-  const seen = new Set();          // "name|area" で重複排除
+  const alerts = [];
+  const seen = new Set();  // name のみで重複排除（エリア問わず）
   try {
     const areaTypes = data.areaTypes || [];
     for (const areaType of areaTypes) {
       for (const area of (areaType.areas || [])) {
         for (const warning of (area.warnings || [])) {
           const status = warning.status;
-          if (status === '発表' || status === '継続') {
-            const name = warning.name || '';
-            let matched = false;
-            // Check special warnings first
-            for (const [key, info] of Object.entries(specialWarn)) {
-              if (name.includes(key)) {
-                const dedupKey = key + '|' + area.name;
-                if (!seen.has(dedupKey)) {
-                  seen.add(dedupKey);
-                  alerts.push({ type: info.risk, name: key, boost: info.boost, level: info.level, area: area.name });
-                }
-                matched = true;
-                break;
-              }
-            }
-            // General warning types only if no special match
-            if (!matched) {
-              for (const [key, info] of Object.entries(warnTypes)) {
-                const dedupKey = key + '|' + area.name;
-                if (name.includes(key) && !seen.has(dedupKey)) {
-                  seen.add(dedupKey);
-                  alerts.push({ type: info.risk, name: key + '注意報', boost: info.boost, level: info.level, area: area.name });
-                }
-              }
-            }
-          }
+          if (status !== '発表' && status !== '継続') continue;
+          const code = String(warning.code || '');
+          const info = WARN_CODES[code];
+          if (!info || info.boost <= 0) continue; // boostなしは表示不要
+          if (seen.has(info.name)) continue;       // 同名警報は1回だけ
+          seen.add(info.name);
+          alerts.push({ type: info.risk, name: info.name, boost: info.boost, level: info.level, area: area.name || area.code });
         }
       }
     }
@@ -1405,6 +1395,7 @@ function parseJmaWarnings(data) {
 
 function parseP2pQuakes(data) {
   const quakes = [];
+  const seen = new Set();
   const now = Date.now();
   for (const q of data) {
     if (!q.earthquake) continue;
@@ -1414,6 +1405,13 @@ function parseP2pQuakes(data) {
     const mag = q.earthquake.hypocenter?.magnitude || 0;
     const depth = q.earthquake.hypocenter?.depth || 0;
     const maxScale = q.earthquake.maxScale || 0;
+    if (mag <= 0 || maxScale < 0) continue; // 不完全データをスキップ
+    // 同一地震の重複排除（場所+10分以内を同一とみなす）
+    const place = q.earthquake.hypocenter?.name || '不明';
+    const timeKey = Math.round(time / 600000); // 10分単位
+    const dedupKey = place + '|' + timeKey;
+    if (seen.has(dedupKey)) continue;
+    seen.add(dedupKey);
     // 東京に影響があるか（震度1以上の報告があるエリアをチェック）
     let tokyoAffected = false;
     let tokyoIntensity = 0;
@@ -1431,7 +1429,7 @@ function parseP2pQuakes(data) {
         maxScale,
         tokyoIntensity,
         hoursAgo: Math.round(hoursAgo * 10) / 10,
-        place: q.earthquake.hypocenter?.name || '不明',
+        place,
       });
     }
   }
@@ -1636,7 +1634,7 @@ const RISK_HEAT_CONFIG = {
     radius: 34, blur: 26,
   },
   liq: {
-    gradient: { 0:'rgba(0,180,80,0)', 0.25:'rgba(40,200,100,.18)', 0.5:'rgba(0,160,70,.38)', 0.75:'rgba(0,130,55,.55)', 1:'rgba(0,100,40,.72)' },
+    gradient: { 0:'rgba(160,60,220,0)', 0.25:'rgba(170,80,230,.18)', 0.5:'rgba(140,40,200,.38)', 0.75:'rgba(120,20,180,.55)', 1:'rgba(95,0,150,.72)' },
     radius: 36, blur: 28,
   },
   tsunami: {
