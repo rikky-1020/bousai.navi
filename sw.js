@@ -6,7 +6,7 @@
      OSM tiles           : Cache First  → 30 days
      External APIs       : Network First → 10 min cache fallback
 ============================================================ */
-const VER        = 'bousai-v18';
+const VER        = 'bousai-v19';
 const TILE_CACHE = 'bousai-tiles-v15';
 const API_CACHE  = 'bousai-api-v15';
 

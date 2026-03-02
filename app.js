@@ -1363,6 +1363,7 @@ function parseJmaWarnings(data) {
     '津波警報': { risk: 'tsunami', boost: 0.5, level: 'danger' },
   };
 
+  const seen = new Set();          // "name|area" で重複排除
   try {
     const areaTypes = data.areaTypes || [];
     for (const areaType of areaTypes) {
@@ -1370,19 +1371,28 @@ function parseJmaWarnings(data) {
         for (const warning of (area.warnings || [])) {
           const status = warning.status;
           if (status === '発表' || status === '継続') {
-            const code = warning.code;
             const name = warning.name || '';
+            let matched = false;
             // Check special warnings first
             for (const [key, info] of Object.entries(specialWarn)) {
               if (name.includes(key)) {
-                alerts.push({ type: info.risk, name: key, boost: info.boost, level: info.level, area: area.name });
+                const dedupKey = key + '|' + area.name;
+                if (!seen.has(dedupKey)) {
+                  seen.add(dedupKey);
+                  alerts.push({ type: info.risk, name: key, boost: info.boost, level: info.level, area: area.name });
+                }
+                matched = true;
                 break;
               }
             }
-            // Then check general warning types
-            for (const [key, info] of Object.entries(warnTypes)) {
-              if (name.includes(key) && !alerts.some(a => a.name.includes(key) && a.area === area.name)) {
-                alerts.push({ type: info.risk, name: key + '注意報', boost: info.boost, level: info.level, area: area.name });
+            // General warning types only if no special match
+            if (!matched) {
+              for (const [key, info] of Object.entries(warnTypes)) {
+                const dedupKey = key + '|' + area.name;
+                if (name.includes(key) && !seen.has(dedupKey)) {
+                  seen.add(dedupKey);
+                  alerts.push({ type: info.risk, name: key + '注意報', boost: info.boost, level: info.level, area: area.name });
+                }
               }
             }
           }
@@ -1499,7 +1509,8 @@ function renderRealtimeAlertBanner() {
     for (const [name, areas] of Object.entries(grouped)) {
       const level = realtimeAlerts.find(a => a.name === name)?.level;
       const icon = level === 'danger' ? '🔴' : '🟡';
-      items.push('<div class="alert-item alert-' + level + '">' + icon + ' ' + name + '</div>');
+      const uniqueAreas = [...new Set(areas)];
+      items.push('<div class="alert-item alert-' + level + '">' + icon + ' ' + name + (uniqueAreas.length > 0 ? ' <small>(' + uniqueAreas.join(', ') + ')</small>' : '') + '</div>');
     }
   }
 
@@ -1625,7 +1636,7 @@ const RISK_HEAT_CONFIG = {
     radius: 34, blur: 26,
   },
   liq: {
-    gradient: { 0:'rgba(240,210,0,0)', 0.25:'rgba(240,220,40,.18)', 0.5:'rgba(220,180,0,.35)', 0.75:'rgba(200,150,0,.52)', 1:'rgba(170,110,0,.68)' },
+    gradient: { 0:'rgba(0,180,80,0)', 0.25:'rgba(40,200,100,.18)', 0.5:'rgba(0,160,70,.38)', 0.75:'rgba(0,130,55,.55)', 1:'rgba(0,100,40,.72)' },
     radius: 36, blur: 28,
   },
   tsunami: {
