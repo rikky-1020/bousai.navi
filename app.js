@@ -1614,38 +1614,58 @@ const TOKYO_RIVERS = [
 
 let riverLayerGroup = null;
 
-// ビューポート内のポイントのみ描画（パフォーマンス最適化）
+// ── ヒートマップ設定（リスク種別ごとのグラデーション） ──
+const RISK_HEAT_CONFIG = {
+  flood: {
+    gradient: { 0:'rgba(60,130,220,0)', 0.25:'rgba(60,160,240,.18)', 0.5:'rgba(30,111,217,.38)', 0.75:'rgba(0,80,200,.55)', 1:'rgba(0,55,180,.72)' },
+    radius: 38, blur: 30,
+  },
+  quake: {
+    gradient: { 0:'rgba(245,166,35,0)', 0.25:'rgba(245,166,35,.18)', 0.5:'rgba(240,100,0,.35)', 0.75:'rgba(210,43,43,.52)', 1:'rgba(180,25,25,.7)' },
+    radius: 34, blur: 26,
+  },
+  liq: {
+    gradient: { 0:'rgba(240,210,0,0)', 0.25:'rgba(240,220,40,.18)', 0.5:'rgba(220,180,0,.35)', 0.75:'rgba(200,150,0,.52)', 1:'rgba(170,110,0,.68)' },
+    radius: 36, blur: 28,
+  },
+  tsunami: {
+    gradient: { 0:'rgba(0,200,180,0)', 0.25:'rgba(0,200,180,.18)', 0.5:'rgba(0,145,130,.36)', 0.75:'rgba(0,120,110,.52)', 1:'rgba(0,90,80,.7)' },
+    radius: 40, blur: 32,
+  },
+  landslide: {
+    gradient: { 0:'rgba(180,150,90,0)', 0.25:'rgba(180,150,90,.18)', 0.5:'rgba(160,120,60,.35)', 0.75:'rgba(139,90,43,.52)', 1:'rgba(110,65,20,.68)' },
+    radius: 32, blur: 24,
+  },
+};
+
+// ヒートマップでリスクオーバーレイを描画（地形に沿った等高線風）
 function renderRiskForViewport(type) {
   const rd = RISK[type];
-  const bounds = map.getBounds();
-  const pad = 0.02; // 少し余裕を持たせる
-  const n = bounds.getNorth() + pad, s = bounds.getSouth() - pad;
-  const e = bounds.getEast() + pad, w = bounds.getWest() - pad;
+  const config = RISK_HEAT_CONFIG[type];
 
   // 既存レイヤーを削除
-  (riskLayers[type] || []).forEach(c => map.removeLayer(c));
+  if (riskLayers[type]) {
+    map.removeLayer(riskLayers[type]);
+    delete riskLayers[type];
+  }
 
-  riskLayers[type] = rd.pts
-    .filter(([lat, lng]) => lat >= s && lat <= n && lng >= w && lng <= e)
-    .map(([lat, lng, v]) => {
-      const col = v>.75 ? rd.c.h : v>.5 ? rd.c.m : rd.c.l;
-      const lv  = v>.75 ? t().riskHigh : v>.5 ? t().riskMid : t().riskLow;
-      const c = L.circle([lat,lng],{radius:370+v*280,fillColor:col,fillOpacity:.8,color:'transparent'}).addTo(map);
-      c.on('click', () => c.bindPopup('<div class="pop-inner"><div class="pop-title">' + lv + '</div><div class="pop-sub">' + t().risk[type] + ' ' + t().riskArea + '</div></div>').openPopup());
-      return c;
-    });
+  // ヒートマップデータ: [lat, lng, intensity]
+  const heatData = rd.pts.map(([lat, lng, v]) => [lat, lng, v]);
+
+  riskLayers[type] = L.heatLayer(heatData, {
+    radius: config.radius,
+    blur: config.blur,
+    maxZoom: 17,
+    max: 1.0,
+    minOpacity: 0.12,
+    gradient: config.gradient,
+  }).addTo(map);
 }
 
-// moveend時にアクティブなリスクレイヤーを再描画
+// ヒートマップは canvas ベースで自動的にパン/ズーム追従するため、
+// moveend での再描画は不要（パフォーマンス改善）
 let _riskMoveTimer = null;
-function onMapMoveUpdateRisk() {
-  clearTimeout(_riskMoveTimer);
-  _riskMoveTimer = setTimeout(() => {
-    for (const [type, on] of Object.entries(riskOn)) {
-      if (on) renderRiskForViewport(type);
-    }
-  }, 200);
-}
+function onMapMoveUpdateRisk() {}
 
 function toggleRisk(type) {
   riskOn[type] = !riskOn[type];
@@ -1656,11 +1676,12 @@ function toggleRisk(type) {
   }
   if (riskOn[type]) {
     renderRiskForViewport(type);
-    // floodの場合、河川ライン＋浸水想定も表示
     if (type === 'flood') showRiverOverlay();
   } else {
-    (riskLayers[type]||[]).forEach(c => map.removeLayer(c));
-    delete riskLayers[type];
+    if (riskLayers[type]) {
+      map.removeLayer(riskLayers[type]);
+      delete riskLayers[type];
+    }
     if (type === 'flood') hideRiverOverlay();
   }
   updateMapLegend();

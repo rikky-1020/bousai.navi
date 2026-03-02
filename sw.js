@@ -6,7 +6,7 @@
      OSM tiles           : Cache First  → 30 days
      External APIs       : Network First → 10 min cache fallback
 ============================================================ */
-const VER        = 'bousai-v16';
+const VER        = 'bousai-v17';
 const TILE_CACHE = 'bousai-tiles-v15';
 const API_CACHE  = 'bousai-api-v15';
 
@@ -21,6 +21,7 @@ const SHELL_URLS = [
   BASE + 'manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js',
 ];
 
 const TILE_HOSTS = ['tile.openstreetmap.org'];
