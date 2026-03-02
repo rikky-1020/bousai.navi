@@ -6,9 +6,9 @@
      OSM tiles           : Cache First  → 30 days
      External APIs       : Network First → 10 min cache fallback
 ============================================================ */
-const VER        = 'bousai-v8';
-const TILE_CACHE = 'bousai-tiles-v8';
-const API_CACHE  = 'bousai-api-v8';
+const VER        = 'bousai-v9';
+const TILE_CACHE = 'bousai-tiles-v9';
+const API_CACHE  = 'bousai-api-v9';
 
 // GitHub Pages: sw.js は /repo/ 直下に置かれるのでそこを scope にする
 const BASE = self.registration.scope;

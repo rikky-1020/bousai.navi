@@ -406,22 +406,103 @@ function toast(msg, ms = 2800) {
   _toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
-/* ── Bottom Sheet ────────────────────────────────────────── */
-let sheetExpanded = false;
-function toggleSheet() {
-  sheetExpanded = !sheetExpanded;
-  const sheet = document.getElementById('bottom-sheet');
-  sheet.classList.toggle('expanded', sheetExpanded);
-  sheet.setAttribute('aria-expanded', sheetExpanded);
+/* ── Settings dropdown ───────────────────────────────────── */
+function toggleSettings() {
+  const dd = document.getElementById('settings-dropdown');
+  const btn = document.getElementById('settings-btn');
+  const open = dd.style.display !== 'none';
+  dd.style.display = open ? 'none' : 'flex';
+  btn.setAttribute('aria-expanded', !open);
 }
+// Close settings when clicking outside
+document.addEventListener('click', e => {
+  const dd = document.getElementById('settings-dropdown');
+  const btn = document.getElementById('settings-btn');
+  if (dd && dd.style.display !== 'none' && !dd.contains(e.target) && !btn.contains(e.target)) {
+    dd.style.display = 'none';
+    btn.setAttribute('aria-expanded', 'false');
+  }
+});
+
+/* ── Bottom Sheet (3-stage: peek / half / full) ─────────── */
+let sheetState = 'peek'; // 'peek' | 'half' | 'full'
+const SHEET_STATES = ['peek', 'half', 'full'];
+function setSheetState(state) {
+  const sheet = document.getElementById('bottom-sheet');
+  sheet.classList.remove('half', 'full');
+  if (state === 'half') sheet.classList.add('half');
+  if (state === 'full') sheet.classList.add('full');
+  sheetState = state;
+  sheet.setAttribute('aria-expanded', state !== 'peek');
+}
+// Touch drag for bottom sheet
+(function initSheetDrag() {
+  let startY = 0, startH = 0, dragging = false;
+  document.addEventListener('DOMContentLoaded', () => {
+    const handle = document.getElementById('sheet-handle');
+    const sheet = document.getElementById('bottom-sheet');
+    if (!handle || !sheet) return;
+    handle.addEventListener('touchstart', e => {
+      dragging = true;
+      startY = e.touches[0].clientY;
+      startH = sheet.offsetHeight;
+      sheet.style.transition = 'none';
+    }, { passive: true });
+    handle.addEventListener('touchmove', e => {
+      if (!dragging) return;
+      const dy = startY - e.touches[0].clientY;
+      const newH = Math.max(60, Math.min(window.innerHeight * 0.9, startH + dy));
+      sheet.style.height = newH + 'px';
+    }, { passive: true });
+    handle.addEventListener('touchend', () => {
+      if (!dragging) return;
+      dragging = false;
+      sheet.style.transition = '';
+      const h = sheet.offsetHeight;
+      const vh = window.innerHeight;
+      if (h > vh * 0.65) setSheetState('full');
+      else if (h > vh * 0.25) setSheetState('half');
+      else setSheetState('peek');
+      sheet.style.height = '';
+    });
+    // Click handle to cycle states
+    handle.addEventListener('click', () => {
+      const idx = SHEET_STATES.indexOf(sheetState);
+      setSheetState(SHEET_STATES[(idx + 1) % 3]);
+    });
+  });
+})();
+
 function switchSheet(id) {
   document.querySelectorAll('.sheet-view').forEach(v => v.classList.remove('active'));
   document.getElementById('sv-' + id).classList.add('active');
 }
 function closeResults() {
   switchSheet('default');
-  sheetExpanded = false;
-  document.getElementById('bottom-sheet').classList.remove('expanded');
+  setSheetState('peek');
+}
+
+/* ── One-tap GPS + Search ───────────────────────────────── */
+async function quickSearch() {
+  if (userLatLng) {
+    searchShelters();
+    return;
+  }
+  toast(t().toastGps);
+  if (!navigator.geolocation) { openLocSearch(); return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      placeUser(pos.coords.latitude, pos.coords.longitude);
+      map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+      toast(t().toastGpsOk);
+      setTimeout(() => searchShelters(), 300);
+    },
+    () => {
+      toast(currentLang === 'ja' ? '📍 GPS取得失敗。手動で場所を設定してください' : 'GPS failed');
+      openLocSearch();
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
 }
 
 /* ── Location Search Modal ───────────────────────────────── */
@@ -805,7 +886,7 @@ async function searchShelters() {
   if (!userLatLng) { toast(t().toastNoShelter + ' — ' + (currentLang === 'ja' ? 'まず場所を設定してください' : 'Set location first'), 3500); openLocSearch(); return; }
 
   switchSheet('searching');
-  document.getElementById('bottom-sheet').classList.add('expanded');
+  setSheetState('half');
   const { lat, lng } = userLatLng;
   document.getElementById('search-sub-msg').textContent = t().searchRadius;
 
@@ -900,6 +981,7 @@ function renderShelterResults(shelters) {
   if (userLatLng) bounds.push([userLatLng.lat, userLatLng.lng]);
   try { map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 }); } catch(e) {}
   switchSheet('results');
+  setSheetState('half');
 }
 
 /* ── Risk Overlays ───────────────────────────────────────── */
@@ -998,9 +1080,11 @@ const RISK = {
 
 function toggleRisk(type) {
   riskOn[type] = !riskOn[type];
-  const fab = document.querySelector('.risk-fab[data-type="' + type + '"]');
-  fab.classList.toggle('active', riskOn[type]);
-  fab.setAttribute('aria-pressed', riskOn[type]);
+  const chip = document.querySelector('.risk-chip[data-type="' + type + '"]');
+  if (chip) {
+    chip.classList.toggle('active', riskOn[type]);
+    chip.setAttribute('aria-pressed', riskOn[type]);
+  }
   if (riskOn[type]) {
     const rd = RISK[type];
     riskLayers[type] = rd.pts.map(([lat, lng, v]) => {
@@ -1271,7 +1355,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // PWA shortcut handling
   const params = new URLSearchParams(location.search);
-  if (params.get('action') === 'search') setTimeout(() => openLocSearch(), 600);
+  if (params.get('action') === 'search') setTimeout(() => quickSearch(), 600);
   else if (params.get('action') === 'sim') setTimeout(() => nav('sim'), 600);
 
   // Service Worker (GitHub Pages: use relative path)
