@@ -379,6 +379,38 @@ function toggleHighContrast() {
   }
 }
 
+/* ── Emergency Mode (緊急時UI) ────────────────────────────── */
+let emergencyMode = false;
+function toggleEmergencyMode() {
+  emergencyMode = !emergencyMode;
+  document.documentElement.classList.toggle('emergency-mode', emergencyMode);
+  const btn = document.getElementById('sos-btn');
+  btn.setAttribute('aria-pressed', emergencyMode);
+
+  if (emergencyMode) {
+    // 大文字、高コントラスト、アニメーション無効化を一括適用
+    applyFontScale(1.3);
+    toast(currentLang === 'ja' ? '🆘 緊急モード ON — 大きく・見やすく表示中' : '🆘 Emergency Mode ON', 3000);
+    // キャッシュから前回の避難所を復元（すぐ使えるように）
+    if (!window._foundShelters?.length) {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bousai_last_shelters') || 'null');
+        const cachedPos = JSON.parse(localStorage.getItem('bousai_last_pos') || 'null');
+        if (cached?.length && cachedPos) {
+          userLatLng = cachedPos;
+          placeUser(cachedPos.lat, cachedPos.lng);
+          window._foundShelters = cached;
+          renderShelterResults(cached);
+          toast(currentLang === 'ja' ? '📋 前回の検索結果を表示中' : 'Showing cached results', 3000);
+        }
+      } catch(e) {}
+    }
+  } else {
+    applyFontScale(1);
+    toast(currentLang === 'ja' ? '緊急モード OFF' : 'Emergency Mode OFF', 2000);
+  }
+}
+
 /* ── Navigation ──────────────────────────────────────────── */
 function nav(id) {
   document.querySelectorAll('.view').forEach(v => {
@@ -935,6 +967,11 @@ async function searchShelters() {
   }
 
   window._foundShelters = found;
+  // オフラインキャッシュ: 検索結果をlocalStorageに保存
+  try {
+    localStorage.setItem('bousai_last_shelters', JSON.stringify(found));
+    localStorage.setItem('bousai_last_pos', JSON.stringify(userLatLng));
+  } catch(e) {}
   renderShelterResults(found);
 }
 
@@ -1284,8 +1321,14 @@ async function fetchRealtimeDisasterInfo() {
   await fetchRainfallData();
 
   // 更新時刻を記録
-  if (anySuccess) { lastRealtimeUpdate = new Date(); realtimeFetchErrors = 0; }
-  else { realtimeFetchErrors++; }
+  if (anySuccess) {
+    lastRealtimeUpdate = new Date();
+    realtimeFetchErrors = 0;
+    // オフラインキャッシュ
+    try {
+      localStorage.setItem('bousai_alerts', JSON.stringify({ alerts: realtimeAlerts, quakes: realtimeQuakes, rain: currentRainLevel, ts: Date.now() }));
+    } catch(e) {}
+  } else { realtimeFetchErrors++; }
 
   // リスクレベルを動的に調整
   applyRealtimeRiskBoost();
@@ -1983,7 +2026,28 @@ function calcResult() {
 /* ── Share ───────────────────────────────────────────────── */
 async function doShare() {
   const mins = document.getElementById('rh-mins').textContent;
-  const txt  = t().shareText(mins);
+  const dist = document.getElementById('r-dist').textContent;
+  const distUnit = dist >= 1 ? 'km' : 'm';
+  const shelterName = selectedShelter?.name || '';
+  const shelterLat = selectedShelter?.lat;
+  const shelterLng = selectedShelter?.lng;
+  // リッチなシェアテキスト
+  let txt = '';
+  if (currentLang === 'ja') {
+    txt = '🆘 東京防災ナビ シミュレーション結果\n\n';
+    if (shelterName) txt += '🏫 避難先: ' + shelterName + '\n';
+    txt += '📏 距離: ' + dist + distUnit + '\n';
+    txt += '⏱ 予想到達: ' + mins + '分\n';
+    if (shelterLat && shelterLng) txt += '\n📍 Google マップで開く:\nhttps://www.google.com/maps/dir/?api=1&destination=' + shelterLat + ',' + shelterLng + '&travelmode=walking\n';
+    txt += '\n防災ナビで避難ルートを確認しよう！\nhttps://rikky-1020.github.io/bousai.navi/';
+  } else {
+    txt = '🆘 Tokyo Bousai Navi - Simulation Result\n\n';
+    if (shelterName) txt += '🏫 Shelter: ' + shelterName + '\n';
+    txt += '📏 Distance: ' + dist + distUnit + '\n';
+    txt += '⏱ ETA: ' + mins + ' min\n';
+    if (shelterLat && shelterLng) txt += '\n📍 Open in Google Maps:\nhttps://www.google.com/maps/dir/?api=1&destination=' + shelterLat + ',' + shelterLng + '&travelmode=walking\n';
+    txt += '\nhttps://rikky-1020.github.io/bousai.navi/';
+  }
   try {
     if (navigator.share) { await navigator.share({ title: t().appName, text: txt }); return; }
     await navigator.clipboard.writeText(txt);
@@ -2068,11 +2132,22 @@ function toggleCheckItem(idx, el) {
 }
 
 function showFamilyContact() {
-  const msg = currentLang === 'ja'
-    ? '【避難先の共有】\n' + (selectedShelter ? '避難先: ' + selectedShelter.name + '\n' : '') + '東京防災ナビで避難経路を確認しました。\nhttps://rikky-1020.github.io/bousai.navi/'
-    : 'Checked evacuation route with Tokyo Bousai Navi.\nhttps://rikky-1020.github.io/bousai.navi/';
+  let msg = '';
+  if (currentLang === 'ja') {
+    msg = '【避難先の共有】\n';
+    if (selectedShelter) {
+      msg += '避難先: ' + selectedShelter.name + '\n';
+      msg += '距離: ' + (selectedShelter.dist < 1 ? Math.round(selectedShelter.dist * 1000) + 'm' : selectedShelter.dist.toFixed(1) + 'km') + '\n';
+      msg += '📍 Google マップ:\nhttps://www.google.com/maps/dir/?api=1&destination=' + selectedShelter.lat + ',' + selectedShelter.lng + '&travelmode=walking\n';
+    }
+    msg += '\n東京防災ナビ\nhttps://rikky-1020.github.io/bousai.navi/';
+  } else {
+    msg = 'Evacuation shelter: ' + (selectedShelter?.name || 'N/A') + '\n';
+    if (selectedShelter) msg += 'https://www.google.com/maps/dir/?api=1&destination=' + selectedShelter.lat + ',' + selectedShelter.lng + '&travelmode=walking\n';
+    msg += '\nhttps://rikky-1020.github.io/bousai.navi/';
+  }
   if (navigator.share) {
-    navigator.share({ title: t().appName, text: msg }).catch(() => {});
+    navigator.share({ title: currentLang === 'ja' ? '避難先の共有' : 'Shelter Info', text: msg }).catch(() => {});
   } else {
     navigator.clipboard.writeText(msg).then(() => toast(currentLang === 'ja' ? '📋 家族への連絡文をコピーしました' : 'Copied to clipboard'));
   }
@@ -2088,6 +2163,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initMap();
 
+  // オフライン時はキャッシュからリアルタイム情報を復元
+  if (!navigator.onLine) {
+    try {
+      const cached = JSON.parse(localStorage.getItem('bousai_alerts') || 'null');
+      if (cached) {
+        realtimeAlerts = cached.alerts || [];
+        realtimeQuakes = cached.quakes || [];
+        currentRainLevel = cached.rain || 0;
+        lastRealtimeUpdate = cached.ts ? new Date(cached.ts) : null;
+        renderRealtimeAlertBanner();
+      }
+    } catch(e) {}
+  }
   // Fetch realtime disaster info
   fetchRealtimeDisasterInfo();
   // Refresh every 5 minutes

@@ -36,6 +36,16 @@ html,body{height:100%;font-family:var(--fn);background:var(--bg);color:var(--ink
 .logo-text{font-weight:900;font-size:.88rem;letter-spacing:-.01em;flex:1}
 .logo-text span{color:var(--orange)}
 
+/* SOS / Emergency mode button */
+#sos-btn{
+  height:26px;padding:0 8px;background:var(--danger);
+  border:none;border-radius:6px;font-size:.6rem;font-weight:900;
+  color:#fff;cursor:pointer;flex-shrink:0;letter-spacing:.06em;
+  font-family:var(--fn-num);transition:all .15s;
+}
+#sos-btn:active{opacity:.8}
+#sos-btn[aria-pressed="true"]{background:#fff;color:var(--danger);border:2px solid var(--danger)}
+
 /* Settings gear button */
 #settings-btn{
   width:32px;height:32px;background:var(--s2);border:1px solid var(--border);
@@ -810,3 +820,36 @@ button:focus:not(:focus-visible) { outline: none; }
   color: var(--ink3);
   margin-bottom: 3px;
 }
+
+/* ── EMERGENCY MODE ─────────────────────────────────────── */
+.emergency-mode {
+  --surface: #000;
+  --s2: #111;
+  --s3: #1a1a1a;
+  --ink: #fff;
+  --ink2: #eee;
+  --ink3: #ccc;
+  --ink4: #888;
+  --border: #444;
+  --border2: #333;
+  --orange: #FF6600;
+}
+.emergency-mode * { animation-duration: 0s !important; transition-duration: 0s !important; }
+.emergency-mode #ticker { display: none; }
+.emergency-mode .logo-text { font-size: 1rem; }
+.emergency-mode #topbar { background: #D42B2B; border-bottom-color: #B51E1E; }
+.emergency-mode .logo-text, .emergency-mode .logo-text span { color: #fff; }
+.emergency-mode .logo-icon { background: #fff; }
+.emergency-mode .lang-btn { display: none; }
+.emergency-mode #settings-btn { background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.3); color: #fff; }
+.emergency-mode #fab-gps { width: 56px; height: 56px; font-size: 1.4rem; border: 3px solid #fff; }
+.emergency-mode .risk-chip { font-size: .78rem; padding: 7px 12px; border: 2px solid #666; }
+.emergency-mode .btn-cta { font-size: 1.1rem; padding: 16px; }
+.emergency-mode #inline-search { padding: 12px 14px; }
+.emergency-mode .is-placeholder { font-size: .88rem; }
+.emergency-mode .shelter-item { padding: 14px; }
+.emergency-mode .si-name { font-size: .92rem; }
+.emergency-mode .si-dist { font-size: 1.2rem; }
+.emergency-mode .alert-item { font-size: .75rem; padding: 6px 10px; }
+.emergency-mode .alert-safe { font-size: .72rem; }
+.emergency-mode #map-legend { font-size: .6rem; }
