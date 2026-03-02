@@ -2357,31 +2357,49 @@ const SCENARIOS = {
 let activeScenario = null;
 let _scenarioPulseTimer = null;
 
+// シナリオごとのテーマカラー
+const SC_COLORS = {
+  capital_quake: { bg:'#FFF1F0', border:'#D42B2B', accent:'#D42B2B', tag:'#FDEBEB' },
+  arakawa_flood: { bg:'#EEF6FF', border:'#1E6FD9', accent:'#1E6FD9', tag:'#E8F2FF' },
+  typhoon:       { bg:'#F3F0FF', border:'#6B21A8', accent:'#6B21A8', tag:'#F3E8FF' },
+  nankai_trough: { bg:'#E0F5F2', border:'#00897B', accent:'#00897B', tag:'#E0F5F2' },
+};
+
 function openScenarioPanel() {
   const lang = currentLang;
   let html = '<div id="scenario-panel" role="dialog" aria-label="災害シナリオ">';
-  html += '<div class="sc-header"><div class="sc-title">' + (lang === 'ja' ? '🌪 災害シナリオ シミュレーション' : lang === 'en' ? '🌪 Disaster Scenario' : '🌪 灾害场景模拟') + '</div>';
-  html += '<button class="sc-close" onclick="closeScenarioPanel()" aria-label="閉じる">✕</button></div>';
-  html += '<div class="sc-desc">' + (lang === 'ja' ? '「もし今、大災害が起きたら？」をリアルにシミュレーション。\nリスクオーバーレイが自動で切り替わります。' : lang === 'en' ? 'Simulate what happens when a major disaster strikes Tokyo.' : '模拟大灾害发生时的情况。') + '</div>';
+  html += '<div class="sc-header">';
+  html += '<div class="sc-title">' + (lang === 'ja' ? '災害シナリオ' : lang === 'en' ? 'Disaster Scenario' : '灾害场景') + '</div>';
+  html += '<div class="sc-subtitle">' + (lang === 'ja' ? '「もし今、大災害が起きたら？」' : lang === 'en' ? '"What if a disaster strikes now?"' : '"如果现在发生大灾害？"') + '</div>';
+  html += '<button class="sc-close" onclick="closeScenarioPanel()" aria-label="閉じる">✕</button>';
+  html += '</div>';
   html += '<div class="sc-cards">';
   for (const [key, sc] of Object.entries(SCENARIOS)) {
     const isActive = activeScenario?.id === key;
-    html += '<div class="sc-card' + (isActive ? ' active' : '') + '" onclick="activateScenario(\'' + key + '\')" role="button" tabindex="0">';
-    html += '<div class="sc-card-icon">' + sc.icon + '</div>';
-    html += '<div class="sc-card-body">';
-    html += '<div class="sc-card-name">' + sc.name[lang] + ' <span class="sc-card-mag">' + sc.magnitude + '</span></div>';
-    html += '<div class="sc-card-desc">' + sc.desc[lang] + '</div>';
+    const col = SC_COLORS[key];
+    const bgStyle = isActive
+      ? 'background:' + col.bg + ';border-color:' + col.border
+      : '';
+    html += '<div class="sc-card' + (isActive ? ' active' : '') + '" style="' + bgStyle + '" onclick="activateScenario(\'' + key + '\')" role="button" tabindex="0">';
+    html += '<div class="sc-card-left" style="background:' + (isActive ? col.accent : 'var(--s2)') + '">';
+    html += '<span class="sc-card-icon">' + sc.icon + '</span>';
     html += '</div>';
-    if (isActive) html += '<div class="sc-card-badge">' + (lang === 'ja' ? '発動中' : 'ACTIVE') + '</div>';
+    html += '<div class="sc-card-body">';
+    html += '<div class="sc-card-top">';
+    html += '<span class="sc-card-name">' + sc.name[lang] + '</span>';
+    html += '<span class="sc-card-mag" style="background:' + col.tag + ';color:' + col.accent + '">' + sc.magnitude + '</span>';
+    html += '</div>';
+    html += '<div class="sc-card-desc">' + sc.desc[lang] + '</div>';
+    if (isActive) html += '<div class="sc-card-badge" style="background:' + col.accent + '">' + (lang === 'ja' ? 'シナリオ発動中' : 'ACTIVE') + '</div>';
+    html += '</div>';
     html += '</div>';
   }
   html += '</div>';
   if (activeScenario) {
-    html += '<button class="sc-deactivate" onclick="deactivateScenario()">' + (lang === 'ja' ? '⏹ シナリオを解除する' : lang === 'en' ? '⏹ Deactivate Scenario' : '⏹ 解除场景') + '</button>';
+    html += '<button class="sc-deactivate" onclick="deactivateScenario()">' + (lang === 'ja' ? '解除する' : lang === 'en' ? 'Deactivate' : '解除') + '</button>';
   }
   html += '</div>';
 
-  // Use location modal pattern
   let modal = document.getElementById('scenario-modal');
   if (!modal) {
     modal = document.createElement('div');
@@ -2541,34 +2559,35 @@ function removeScenarioMapEffect() {
 }
 
 function showScenarioBanner(sc) {
-  // Remove old banner
   const old = document.getElementById('scenario-banner');
   if (old) old.remove();
 
   const lang = currentLang;
   const info = sc.info[lang] || sc.info.ja;
   const timeline = sc.timeline[lang] || sc.timeline.ja;
+  const col = SC_COLORS[sc.id];
 
-  let html = '<div id="scenario-banner" class="scenario-banner">';
+  let html = '<div id="scenario-banner" class="scenario-banner" style="background:' + col.bg + ';border-left:4px solid ' + col.accent + '">';
   html += '<div class="sb-header">';
   html += '<span class="sb-icon">' + sc.icon + '</span>';
-  html += '<span class="sb-name">' + sc.name[lang] + '</span>';
-  html += '<span class="sb-mag">' + sc.magnitude + '</span>';
-  html += '<button class="sb-close" onclick="deactivateScenario()" aria-label="シナリオ解除">✕</button>';
+  html += '<span class="sb-name" style="color:' + col.accent + '">' + sc.name[lang] + '</span>';
+  html += '<span class="sb-mag" style="background:' + col.accent + '">' + sc.magnitude + '</span>';
+  html += '<button class="sb-close" style="color:' + col.accent + '" onclick="deactivateScenario()" aria-label="シナリオ解除">✕</button>';
   html += '</div>';
 
   // Info bullets
   html += '<div class="sb-info">';
-  info.forEach(item => { html += '<div class="sb-info-item">• ' + item + '</div>'; });
+  info.forEach(item => { html += '<div class="sb-info-item" style="color:' + col.accent + '">• ' + item + '</div>'; });
   html += '</div>';
 
-  // Timeline
-  html += '<div class="sb-timeline">';
-  html += '<div class="sb-tl-title">' + (lang === 'ja' ? '⏱ 想定タイムライン' : '⏱ Timeline') + '</div>';
+  // Timeline (collapsible)
+  html += '<details class="sb-timeline">';
+  html += '<summary class="sb-tl-title" style="color:' + col.accent + '">⏱ ' + (lang === 'ja' ? '想定タイムラインを見る' : 'View Timeline') + '</summary>';
+  html += '<div class="sb-tl-steps">';
   timeline.forEach(step => {
-    html += '<div class="sb-tl-step"><span class="sb-tl-time">' + step.t + '</span><span class="sb-tl-icon">' + step.icon + '</span><span class="sb-tl-text">' + step.text + '</span></div>';
+    html += '<div class="sb-tl-step"><span class="sb-tl-time" style="color:' + col.accent + '">' + step.t + '</span><span class="sb-tl-icon">' + step.icon + '</span><span class="sb-tl-text">' + step.text + '</span></div>';
   });
-  html += '</div>';
+  html += '</div></details>';
 
   html += '</div>';
 
