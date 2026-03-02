@@ -390,6 +390,8 @@ function toggleEmergencyMode() {
   if (emergencyMode) {
     // 大文字、高コントラスト、アニメーション無効化を一括適用
     applyFontScale(1.3);
+    // マスクを黒に
+    if (window._tokyoMask) window._tokyoMask.setStyle({ fillColor: '#000' });
     toast(currentLang === 'ja' ? '🆘 緊急モード ON — 大きく・見やすく表示中' : '🆘 Emergency Mode ON', 3000);
     // キャッシュから前回の避難所を復元（すぐ使えるように）
     if (!window._foundShelters?.length) {
@@ -407,6 +409,8 @@ function toggleEmergencyMode() {
     }
   } else {
     applyFontScale(1);
+    // マスクを元のベージュに戻す
+    if (window._tokyoMask) window._tokyoMask.setStyle({ fillColor: '#E8E5DE' });
     toast(currentLang === 'ja' ? '緊急モード OFF' : 'Emergency Mode OFF', 2000);
   }
 }
@@ -664,7 +668,7 @@ function initMap() {
   const TOKYO_BOUNDS = L.latLngBounds([35.50, 139.05], [35.93, 139.92]);
   map = L.map('map', {
     center: DEFAULT_CENTER, zoom: 11, zoomControl: true,
-    maxBounds: TOKYO_BOUNDS.pad(0.02),
+    maxBounds: TOKYO_BOUNDS.pad(0.08),
     minZoom: 10,
     maxBoundsViscosity: 1.0,
   });
@@ -687,15 +691,17 @@ function initMap() {
     [35.672, 139.172],[35.732, 139.122],[35.782, 139.092],[35.832, 139.072],
     [35.898, 139.095],
   ];
-  // Mask: dim everything outside Tokyo
+  // Mask: 東京都外を完全に塗りつぶし
   const worldRect = [[90,-180],[90,180],[-90,180],[-90,-180],[90,-180]];
   const tokyoHole = TOKYO_BORDER.slice().reverse();
-  L.polygon([worldRect, tokyoHole], {
-    fillColor: '#1a1a2e', fillOpacity: 0.35, stroke: false, interactive: false,
+  const maskLayer = L.polygon([worldRect, tokyoHole], {
+    fillColor: '#E8E5DE', fillOpacity: 1.0, stroke: false, interactive: false,
+    className: 'tokyo-mask',
   }).addTo(map);
+  window._tokyoMask = maskLayer;
   // Border line around Tokyo
   L.polyline(TOKYO_BORDER, {
-    color: '#FF5C00', weight: 3, opacity: 0.7, dashArray: '10, 5', interactive: false,
+    color: '#FF5C00', weight: 2.5, opacity: 0.85, interactive: false,
   }).addTo(map);
 
   map.on('click', e => {

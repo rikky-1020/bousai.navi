@@ -85,7 +85,9 @@ html,body{height:100%;font-family:var(--fn);background:var(--bg);color:var(--ink
 #map{position:absolute;inset:0;z-index:1}
 
 /* Leaflet overrides */
-.leaflet-tile-pane{filter:saturate(.7) brightness(1.03) contrast(.96)}
+.leaflet-tile-pane{filter:saturate(.65) brightness(1.04) contrast(.95)}
+/* 東京外マスクをタイルの上に表示するためz-index確保 */
+.tokyo-mask{pointer-events:none}
 .leaflet-control-zoom{
   border:1px solid var(--border)!important;border-radius:var(--r-sm)!important;
   box-shadow:var(--shadow)!important;overflow:hidden;
