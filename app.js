@@ -1614,6 +1614,7 @@ function toggleRisk(type) {
     delete riskLayers[type];
     if (type === 'flood') hideRiverOverlay();
   }
+  updateMapLegend();
 }
 
 function showRiverOverlay() {
@@ -1988,6 +1989,93 @@ async function doShare() {
     await navigator.clipboard.writeText(txt);
     toast(t().toastCopied);
   } catch(e) {}
+}
+
+/* ── Map Legend (凡例) ─────────────────────────────────── */
+const LEGEND_INFO = {
+  flood:     { label:'水害',   colors:[{c:'rgba(30,111,217,.55)',l:'高危険'},{c:'rgba(30,111,217,.4)',l:'中危険'},{c:'rgba(30,111,217,.25)',l:'要注意'}] },
+  quake:     { label:'倒壊',   colors:[{c:'rgba(212,43,43,.55)',l:'高危険'},{c:'rgba(212,43,43,.4)',l:'中危険'},{c:'rgba(212,43,43,.25)',l:'要注意'}] },
+  liq:       { label:'液状化', colors:[{c:'rgba(232,160,0,.55)',l:'高危険'},{c:'rgba(232,160,0,.4)',l:'中危険'},{c:'rgba(232,160,0,.25)',l:'要注意'}] },
+  tsunami:   { label:'津波',   colors:[{c:'rgba(0,137,123,.55)',l:'高危険'},{c:'rgba(0,137,123,.4)',l:'中危険'},{c:'rgba(0,137,123,.25)',l:'要注意'}] },
+  landslide: { label:'土砂災害', colors:[{c:'rgba(139,90,43,.55)',l:'高危険'},{c:'rgba(139,90,43,.4)',l:'中危険'},{c:'rgba(139,90,43,.25)',l:'要注意'}] },
+};
+
+function updateMapLegend() {
+  const legend = document.getElementById('map-legend');
+  if (!legend) return;
+  const activeTypes = Object.entries(riskOn).filter(([,v]) => v).map(([k]) => k);
+  if (activeTypes.length === 0) { legend.style.display = 'none'; return; }
+  legend.style.display = 'block';
+  const titleEl = document.getElementById('legend-title');
+  titleEl.textContent = currentLang === 'ja' ? '凡例' : currentLang === 'en' ? 'Legend' : '图例';
+  let html = '';
+  for (const type of activeTypes) {
+    const info = LEGEND_INFO[type];
+    if (!info) continue;
+    html += '<div style="font-size:.48rem;font-weight:900;color:var(--ink3);margin-top:2px">' + info.label + '</div>';
+    for (const c of info.colors) {
+      html += '<div class="legend-row"><div class="legend-dot" style="background:' + c.c + '"></div>' + c.l + '</div>';
+    }
+  }
+  // 河川凡例
+  if (activeTypes.includes('flood')) {
+    html += '<div style="font-size:.48rem;font-weight:900;color:var(--ink3);margin-top:2px">河川</div>';
+    html += '<div class="legend-row"><div class="legend-dot" style="background:#0055CC;width:16px;height:3px;border-radius:1px"></div>危険度 高</div>';
+    html += '<div class="legend-row"><div class="legend-dot" style="background:#2277DD;width:16px;height:3px;border-radius:1px"></div>危険度 中</div>';
+    html += '<div class="legend-row"><div class="legend-dot" style="background:#4499EE;width:16px;height:3px;border-radius:1px"></div>危険度 低</div>';
+  }
+  document.getElementById('legend-items').innerHTML = html;
+}
+
+/* ── Next Actions (持ち物チェックリスト + 家族連絡) ────── */
+const CHECKLIST_ITEMS = [
+  {icon:'💧', text:'飲料水（1人1日3L×3日分）'},
+  {icon:'🍙', text:'非常食（缶詰・カロリーメイト等 3日分）'},
+  {icon:'🔦', text:'懐中電灯・予備電池'},
+  {icon:'📱', text:'モバイルバッテリー（満充電）'},
+  {icon:'💊', text:'常備薬・お薬手帳のコピー'},
+  {icon:'🩹', text:'救急セット（絆創膏・消毒液）'},
+  {icon:'📻', text:'携帯ラジオ'},
+  {icon:'🪪', text:'身分証明書のコピー・保険証'},
+  {icon:'💰', text:'現金（小銭多め）'},
+  {icon:'👕', text:'着替え・タオル'},
+  {icon:'🧻', text:'トイレットペーパー・ウェットティッシュ'},
+  {icon:'🔑', text:'自宅の鍵・車の鍵'},
+];
+
+function showChecklist() {
+  const panel = document.getElementById('checklist-panel');
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  const saved = JSON.parse(localStorage.getItem('bousai_checklist') || '{}');
+  let html = '<div class="cl-title">🎒 ' + (currentLang === 'ja' ? '非常持ち出し袋チェックリスト' : 'Emergency Bag Checklist') + '</div>';
+  CHECKLIST_ITEMS.forEach((item, i) => {
+    const checked = saved[i] ? ' checked' : '';
+    html += '<div class="cl-item"><div class="cl-check' + checked + '" onclick="toggleCheckItem(' + i + ',this)" role="checkbox" aria-checked="' + !!saved[i] + '">' + (saved[i] ? '✓' : '') + '</div><span>' + item.icon + ' ' + item.text + '</span></div>';
+  });
+  html += '<div class="cl-close" onclick="document.getElementById(\'checklist-panel\').style.display=\'none\'">閉じる</div>';
+  panel.innerHTML = html;
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleCheckItem(idx, el) {
+  const saved = JSON.parse(localStorage.getItem('bousai_checklist') || '{}');
+  saved[idx] = !saved[idx];
+  localStorage.setItem('bousai_checklist', JSON.stringify(saved));
+  el.classList.toggle('checked', saved[idx]);
+  el.textContent = saved[idx] ? '✓' : '';
+  el.setAttribute('aria-checked', saved[idx]);
+}
+
+function showFamilyContact() {
+  const msg = currentLang === 'ja'
+    ? '【避難先の共有】\n' + (selectedShelter ? '避難先: ' + selectedShelter.name + '\n' : '') + '東京防災ナビで避難経路を確認しました。\nhttps://rikky-1020.github.io/bousai.navi/'
+    : 'Checked evacuation route with Tokyo Bousai Navi.\nhttps://rikky-1020.github.io/bousai.navi/';
+  if (navigator.share) {
+    navigator.share({ title: t().appName, text: msg }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(msg).then(() => toast(currentLang === 'ja' ? '📋 家族への連絡文をコピーしました' : 'Copied to clipboard'));
+  }
 }
 
 /* ── Boot ────────────────────────────────────────────────── */

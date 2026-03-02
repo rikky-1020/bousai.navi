@@ -83,6 +83,12 @@
     <!-- GPS FAB (single, clean) -->
     <div class="fab" id="fab-gps" onclick="quickSearch()" title="近くの避難所を検索" role="button" tabindex="0" aria-label="近くの避難所を検索" onkeydown="if(event.key==='Enter'||event.key===' ')quickSearch()">📍</div>
 
+    <!-- ハザードマップ凡例 (リスク表示中のみ表示) -->
+    <div id="map-legend" style="display:none" role="region" aria-label="凡例">
+      <div class="legend-title" id="legend-title">凡例</div>
+      <div class="legend-items" id="legend-items"></div>
+    </div>
+
     <!-- Bottom Sheet (3-stage drag) -->
     <div id="bottom-sheet" aria-label="避難所パネル" aria-expanded="false">
       <div id="sheet-handle" role="button" tabindex="0" aria-label="パネルを開閉">
@@ -101,7 +107,12 @@
       <div id="sheet-content">
         <!-- DEFAULT -->
         <div class="sheet-view active" id="sv-default">
-          <button class="btn-cta" onclick="quickSearch()" data-i18n="searchBtn" aria-label="近くの避難所を自動検索">🔍 近くの避難所を自動検索</button>
+          <!-- 住所検索（GPSを使わずに場所を設定） -->
+          <div id="inline-search" onclick="openLocSearch()" role="button" tabindex="0" aria-label="住所・駅名で場所を検索">
+            <span class="is-icon">🔍</span>
+            <span class="is-placeholder">住所・駅名で検索（GPSなし）</span>
+          </div>
+          <button class="btn-cta" onclick="quickSearch()" data-i18n="searchBtn" aria-label="近くの避難所を自動検索">📍 GPSで近くの避難所を検索</button>
           <button class="btn-sec" onclick="goSim()" data-i18n="simBtn" aria-label="避難シミュレーションを始める">🏃 避難シミュレーションを始める →</button>
           <div id="risk-summary" style="display:none" role="region" aria-label="被害予想"></div>
           <div id="data-credit" aria-label="データ出典">
@@ -257,9 +268,34 @@
         <div id="adv-list" role="list"></div>
       </div>
 
+      <!-- 次のアクション -->
+      <div class="next-actions" role="region" aria-label="次にやること">
+        <div class="na-title">📋 今すぐできること</div>
+        <div class="na-grid">
+          <button class="na-btn" onclick="showChecklist()" aria-label="持ち物チェックリスト">
+            <span class="na-icon">🎒</span>
+            <span class="na-label">持ち物チェック</span>
+          </button>
+          <button class="na-btn" onclick="showFamilyContact()" aria-label="家族に連絡">
+            <span class="na-icon">👨‍👩‍👧</span>
+            <span class="na-label">家族に連絡</span>
+          </button>
+          <button class="na-btn" onclick="doShare()" aria-label="結果をシェア">
+            <span class="na-icon">📤</span>
+            <span class="na-label">結果をシェア</span>
+          </button>
+          <button class="na-btn" onclick="nav('map')" aria-label="マップに戻る">
+            <span class="na-icon">🗺</span>
+            <span class="na-label">マップに戻る</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- チェックリストモーダル (hidden) -->
+      <div id="checklist-panel" style="display:none" role="region" aria-label="防災チェックリスト"></div>
+
       <div class="res-actions">
-        <button class="btn-cta" onclick="doShare()" data-i18n="shareBtn" aria-label="結果をシェア">📤 結果をシェア</button>
-        <button class="btn-sec" onclick="nav('map')" data-i18n="backMapBtn" aria-label="ハザードマップに戻る">🗺 ハザードマップに戻る</button>
+        <button class="btn-sec" onclick="nav('sim')" data-i18n="retryBtn" aria-label="条件を変えてもう一度">🔄 条件を変えてもう一度試す</button>
       </div>
     </div>
   </div>
