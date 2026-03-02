@@ -2159,6 +2159,415 @@ function showFamilyContact() {
   }
 }
 
+/* ── Disaster Scenario Simulation (災害シナリオモード) ──── */
+const SCENARIOS = {
+  capital_quake: {
+    id: 'capital_quake',
+    icon: '🏚️',
+    name: { ja: '首都直下地震', en: 'Capital Earthquake', zh: '首都直下地震' },
+    desc: { ja: 'M7.3 都心南部直下型 — 最大震度7・死者想定2.3万人', en: 'M7.3 Southern Tokyo — Max intensity 7', zh: 'M7.3 首都正下方 — 最大震度7' },
+    magnitude: 'M7.3',
+    boosts: { quake: 0.4, liq: 0.35, landslide: 0.15, flood: 0.05 },
+    autoRisk: ['quake', 'liq'],
+    mapEffect: 'shake',
+    center: [35.68, 139.75],
+    zoom: 12,
+    info: {
+      ja: [
+        '建物倒壊: 約17.5万棟',
+        '火災焼失: 約41.2万棟',
+        '帰宅困難者: 約800万人',
+        'ライフライン: 電気49%停電・水道51%断水',
+        '避難者: 最大約720万人',
+      ],
+      en: [
+        'Building collapse: ~175,000',
+        'Fire damage: ~412,000 buildings',
+        'Stranded commuters: ~8 million',
+        'Lifelines: 49% blackout, 51% water outage',
+      ],
+      zh: [
+        '建筑倒塌: 约17.5万栋',
+        '火灾损失: 约41.2万栋',
+        '回家困难者: 约800万人',
+      ],
+    },
+    timeline: {
+      ja: [
+        { t: '0分', icon: '🫨', text: '激しい揺れ（約1〜2分間）' },
+        { t: '〜5分', icon: '🔥', text: '各地で火災発生・倒壊した建物からの救助活動開始' },
+        { t: '〜30分', icon: '📵', text: '携帯電話がつながりにくくなる' },
+        { t: '〜1時間', icon: '🚫', text: '交通機関が全面ストップ・エレベーター閉じ込め多発' },
+        { t: '〜6時間', icon: '🚶', text: '帰宅困難者が駅周辺に滞留' },
+        { t: '〜24時間', icon: '💧', text: '断水・停電が広域化・避難所が満員に' },
+      ],
+    },
+  },
+  arakawa_flood: {
+    id: 'arakawa_flood',
+    icon: '🌊',
+    name: { ja: '荒川氾濫', en: 'Arakawa River Flood', zh: '荒川泛滥' },
+    desc: { ja: '荒川堤防決壊 — 最大浸水深5m超・約250万人に影響', en: 'Arakawa levee breach — Max depth 5m+', zh: '荒川堤防溃坝 — 最大水深5m以上' },
+    magnitude: '浸水深5m',
+    boosts: { flood: 0.5, liq: 0.1 },
+    autoRisk: ['flood'],
+    mapEffect: 'flood',
+    center: [35.72, 139.83],
+    zoom: 12,
+    info: {
+      ja: [
+        '浸水面積: 約110km² (23区の約1/3)',
+        '最大浸水深: 5m以上（江東区・葛飾区）',
+        '影響人口: 約250万人',
+        '浸水継続: 最大2週間以上',
+        '避難対象: 江東5区（墨田・江東・足立・葛飾・江戸川）約250万人',
+      ],
+      en: [
+        'Flood area: ~110km²',
+        'Max depth: 5m+ (Koto, Katsushika)',
+        'Affected: ~2.5 million people',
+        'Duration: up to 2 weeks',
+      ],
+      zh: [
+        '淹水面积: 约110km²',
+        '最大水深: 5m以上',
+        '影响人口: 约250万人',
+      ],
+    },
+    timeline: {
+      ja: [
+        { t: '−24時間', icon: '🌧', text: '大雨特別警報・荒川上流で記録的豪雨' },
+        { t: '−3時間', icon: '⚠️', text: '氾濫危険情報発表・広域避難指示' },
+        { t: '0分', icon: '🌊', text: '堤防決壊・浸水開始' },
+        { t: '〜3時間', icon: '🏠', text: '低地で1〜3m浸水・地下鉄水没' },
+        { t: '〜12時間', icon: '🚫', text: '浸水エリア拡大・ライフライン途絶' },
+        { t: '〜2週間', icon: '💧', text: '排水完了まで長期浸水が継続' },
+      ],
+    },
+  },
+  typhoon: {
+    id: 'typhoon',
+    icon: '🌀',
+    name: { ja: '大型台風直撃', en: 'Major Typhoon', zh: '超强台风直击' },
+    desc: { ja: '最大風速60m/s・記録的大雨 — 複合災害の恐れ', en: 'Wind 60m/s + Record rain — compound disaster', zh: '最大风速60m/s — 复合灾害' },
+    magnitude: '60m/s',
+    boosts: { flood: 0.35, landslide: 0.35, tsunami: 0.15 },
+    autoRisk: ['flood', 'landslide'],
+    mapEffect: 'storm',
+    center: [35.68, 139.65],
+    zoom: 11,
+    info: {
+      ja: [
+        '最大風速: 60m/s（屋外行動不可）',
+        '総雨量: 500mm以上（多摩地域）',
+        '河川氾濫: 多摩川・神田川・石神井川など',
+        '土砂災害: 多摩丘陵・国分寺崖線',
+        '高潮: 東京湾岸で最大3m',
+        '停電: 最大100万軒',
+      ],
+      en: [
+        'Max wind: 60m/s',
+        'Total rain: 500mm+',
+        'River floods: Tama, Kanda rivers',
+        'Landslides: Tama hills area',
+      ],
+      zh: [
+        '最大风速: 60m/s',
+        '总降雨量: 500mm以上',
+        '河川泛滥: 多摩川等',
+      ],
+    },
+    timeline: {
+      ja: [
+        { t: '−48時間', icon: '📡', text: '台風接近予報・計画運休の発表' },
+        { t: '−12時間', icon: '🛒', text: '食料・水の買い占め・避難準備開始' },
+        { t: '−3時間', icon: '🌧', text: '暴風域に入る・交通機関全面運休' },
+        { t: '0時間', icon: '🌀', text: '台風最接近 — 暴風雨のピーク' },
+        { t: '〜6時間', icon: '🌊', text: '河川氾濫・土砂崩れ・高潮発生' },
+        { t: '〜24時間', icon: '🔧', text: '台風通過後も倒木・冠水で復旧に時間' },
+      ],
+    },
+  },
+  nankai_trough: {
+    id: 'nankai_trough',
+    icon: '🌏',
+    name: { ja: '南海トラフ地震', en: 'Nankai Trough Quake', zh: '南海海沟地震' },
+    desc: { ja: 'M9.1 太平洋沖 — 東京湾に津波・長周期地震動で高層被害', en: 'M9.1 Pacific — Tsunami + long-period ground motion', zh: 'M9.1 太平洋近海 — 海啸+长周期震动' },
+    magnitude: 'M9.1',
+    boosts: { tsunami: 0.5, quake: 0.2, liq: 0.25, flood: 0.1 },
+    autoRisk: ['tsunami', 'quake'],
+    mapEffect: 'shake',
+    center: [35.64, 139.77],
+    zoom: 12,
+    info: {
+      ja: [
+        '東京の最大震度: 5強〜6弱',
+        '東京湾内津波: 最大2〜3m（到達まで約2時間）',
+        '長周期地震動: 高層ビルで大きな揺れ（階級4）',
+        '液状化: 湾岸埋立地で広範囲',
+        '帰宅困難者: 約650万人（首都圏全体で約800万人）',
+        '経済被害: 全国で約220兆円',
+      ],
+      en: [
+        'Tokyo intensity: 5+ to 6-',
+        'Tokyo Bay tsunami: max 2-3m (2 hours)',
+        'Long-period motion: high-rise swaying',
+        'Liquefaction: wide coastal area',
+      ],
+      zh: [
+        '东京最大震度: 5强〜6弱',
+        '东京湾海啸: 最大2〜3m',
+        '长周期震动: 高层建筑大幅摇晃',
+      ],
+    },
+    timeline: {
+      ja: [
+        { t: '0分', icon: '🫨', text: '強い揺れが3〜5分間続く' },
+        { t: '〜3分', icon: '📱', text: '大津波警報発表・緊急地震速報' },
+        { t: '〜30分', icon: '🏢', text: '高層ビルで長周期地震動（数分間の大揺れ）' },
+        { t: '〜2時間', icon: '🌊', text: '東京湾に津波到達（最大2〜3m）' },
+        { t: '〜6時間', icon: '📵', text: '通信障害・交通全面ストップ' },
+        { t: '〜数日', icon: '🚚', text: '物流停止・全国的な支援物資不足' },
+      ],
+    },
+  },
+};
+
+let activeScenario = null;
+let _scenarioPulseTimer = null;
+
+function openScenarioPanel() {
+  const lang = currentLang;
+  let html = '<div id="scenario-panel" role="dialog" aria-label="災害シナリオ">';
+  html += '<div class="sc-header"><div class="sc-title">' + (lang === 'ja' ? '🌪 災害シナリオ シミュレーション' : lang === 'en' ? '🌪 Disaster Scenario' : '🌪 灾害场景模拟') + '</div>';
+  html += '<button class="sc-close" onclick="closeScenarioPanel()" aria-label="閉じる">✕</button></div>';
+  html += '<div class="sc-desc">' + (lang === 'ja' ? '「もし今、大災害が起きたら？」をリアルにシミュレーション。\nリスクオーバーレイが自動で切り替わります。' : lang === 'en' ? 'Simulate what happens when a major disaster strikes Tokyo.' : '模拟大灾害发生时的情况。') + '</div>';
+  html += '<div class="sc-cards">';
+  for (const [key, sc] of Object.entries(SCENARIOS)) {
+    const isActive = activeScenario?.id === key;
+    html += '<div class="sc-card' + (isActive ? ' active' : '') + '" onclick="activateScenario(\'' + key + '\')" role="button" tabindex="0">';
+    html += '<div class="sc-card-icon">' + sc.icon + '</div>';
+    html += '<div class="sc-card-body">';
+    html += '<div class="sc-card-name">' + sc.name[lang] + ' <span class="sc-card-mag">' + sc.magnitude + '</span></div>';
+    html += '<div class="sc-card-desc">' + sc.desc[lang] + '</div>';
+    html += '</div>';
+    if (isActive) html += '<div class="sc-card-badge">' + (lang === 'ja' ? '発動中' : 'ACTIVE') + '</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  if (activeScenario) {
+    html += '<button class="sc-deactivate" onclick="deactivateScenario()">' + (lang === 'ja' ? '⏹ シナリオを解除する' : lang === 'en' ? '⏹ Deactivate Scenario' : '⏹ 解除场景') + '</button>';
+  }
+  html += '</div>';
+
+  // Use location modal pattern
+  let modal = document.getElementById('scenario-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'scenario-modal';
+    modal.style.display = 'none';
+    document.getElementById('app').appendChild(modal);
+  }
+  modal.innerHTML = '<div class="sc-backdrop" onclick="closeScenarioPanel()"></div><div class="sc-panel">' + html + '</div>';
+  modal.style.display = 'flex';
+}
+
+function closeScenarioPanel() {
+  const modal = document.getElementById('scenario-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function activateScenario(key) {
+  const sc = SCENARIOS[key];
+  if (!sc) return;
+
+  // Deactivate previous if any
+  if (activeScenario) deactivateScenario(true);
+
+  activeScenario = sc;
+
+  // Apply risk boosts
+  applyScenarioBoosts(sc);
+
+  // Auto-enable risk overlays
+  for (const type of sc.autoRisk) {
+    if (!riskOn[type]) toggleRisk(type);
+  }
+
+  // Map effects
+  applyScenarioMapEffect(sc);
+
+  // Pan map to scenario focus
+  map.setView(sc.center, sc.zoom, { animate: true, duration: 1.0 });
+
+  // Show scenario info banner
+  showScenarioBanner(sc);
+
+  // Close panel & show toast
+  closeScenarioPanel();
+  const lang = currentLang;
+  toast(sc.icon + ' ' + sc.name[lang] + (lang === 'ja' ? ' シナリオ発動' : ' Scenario Active'), 3000);
+
+  // Update bottom sheet button
+  updateScenarioButton();
+}
+
+function deactivateScenario(silent) {
+  if (!activeScenario) return;
+
+  // Reset risk boosts to baseline
+  if (_baseRiskPts) {
+    for (const [type, data] of Object.entries(RISK)) {
+      if (_baseRiskPts[type]) data.pts = _baseRiskPts[type].map(p => [...p]);
+    }
+  }
+  // Re-apply realtime boosts (but not scenario)
+  applyRealtimeRiskBoost();
+
+  // Remove map effects
+  removeScenarioMapEffect();
+
+  // Remove scenario banner
+  const banner = document.getElementById('scenario-banner');
+  if (banner) banner.remove();
+
+  const prevName = activeScenario.name[currentLang];
+  activeScenario = null;
+
+  // Refresh active risk overlays
+  for (const [type, on] of Object.entries(riskOn)) {
+    if (on) renderRiskForViewport(type);
+  }
+
+  if (!silent) {
+    closeScenarioPanel();
+    toast(currentLang === 'ja' ? '⏹ シナリオを解除しました' : 'Scenario deactivated', 2000);
+  }
+
+  updateScenarioButton();
+}
+
+function applyScenarioBoosts(sc) {
+  // Ensure baseline exists
+  if (!_baseRiskPts) {
+    _baseRiskPts = {};
+    for (const [type, data] of Object.entries(RISK)) {
+      _baseRiskPts[type] = data.pts.map(p => [...p]);
+    }
+  }
+  // Reset to baseline first
+  for (const [type, data] of Object.entries(RISK)) {
+    if (_baseRiskPts[type]) data.pts = _baseRiskPts[type].map(p => [...p]);
+  }
+  // Re-apply realtime boosts
+  for (const alert of realtimeAlerts) {
+    if (RISK[alert.type]) {
+      RISK[alert.type].pts = RISK[alert.type].pts.map(([lat, lng, v]) => [lat, lng, Math.min(1.0, v + alert.boost)]);
+    }
+  }
+  // Apply scenario boosts on top
+  for (const [type, boost] of Object.entries(sc.boosts)) {
+    if (RISK[type]) {
+      RISK[type].pts = RISK[type].pts.map(([lat, lng, v]) => [lat, lng, Math.min(1.0, v + boost)]);
+    }
+  }
+  // Refresh active overlays
+  for (const [type, on] of Object.entries(riskOn)) {
+    if (on) renderRiskForViewport(type);
+  }
+}
+
+function applyScenarioMapEffect(sc) {
+  removeScenarioMapEffect();
+  const container = map.getContainer();
+
+  if (sc.mapEffect === 'shake') {
+    container.classList.add('map-shake');
+    setTimeout(() => container.classList.remove('map-shake'), 2000);
+    // Add a subtle danger tint
+    let overlay = document.createElement('div');
+    overlay.id = 'scenario-overlay';
+    overlay.className = 'scenario-overlay quake-tint';
+    container.appendChild(overlay);
+    // Pulse effect
+    _scenarioPulseTimer = setInterval(() => {
+      overlay.classList.toggle('pulse');
+    }, 3000);
+  } else if (sc.mapEffect === 'flood') {
+    let overlay = document.createElement('div');
+    overlay.id = 'scenario-overlay';
+    overlay.className = 'scenario-overlay flood-tint';
+    container.appendChild(overlay);
+    _scenarioPulseTimer = setInterval(() => {
+      overlay.classList.toggle('pulse');
+    }, 4000);
+  } else if (sc.mapEffect === 'storm') {
+    let overlay = document.createElement('div');
+    overlay.id = 'scenario-overlay';
+    overlay.className = 'scenario-overlay storm-tint';
+    container.appendChild(overlay);
+    _scenarioPulseTimer = setInterval(() => {
+      overlay.classList.toggle('pulse');
+    }, 2500);
+  }
+}
+
+function removeScenarioMapEffect() {
+  clearInterval(_scenarioPulseTimer);
+  const overlay = document.getElementById('scenario-overlay');
+  if (overlay) overlay.remove();
+  map.getContainer().classList.remove('map-shake');
+}
+
+function showScenarioBanner(sc) {
+  // Remove old banner
+  const old = document.getElementById('scenario-banner');
+  if (old) old.remove();
+
+  const lang = currentLang;
+  const info = sc.info[lang] || sc.info.ja;
+  const timeline = sc.timeline[lang] || sc.timeline.ja;
+
+  let html = '<div id="scenario-banner" class="scenario-banner">';
+  html += '<div class="sb-header">';
+  html += '<span class="sb-icon">' + sc.icon + '</span>';
+  html += '<span class="sb-name">' + sc.name[lang] + '</span>';
+  html += '<span class="sb-mag">' + sc.magnitude + '</span>';
+  html += '<button class="sb-close" onclick="deactivateScenario()" aria-label="シナリオ解除">✕</button>';
+  html += '</div>';
+
+  // Info bullets
+  html += '<div class="sb-info">';
+  info.forEach(item => { html += '<div class="sb-info-item">• ' + item + '</div>'; });
+  html += '</div>';
+
+  // Timeline
+  html += '<div class="sb-timeline">';
+  html += '<div class="sb-tl-title">' + (lang === 'ja' ? '⏱ 想定タイムライン' : '⏱ Timeline') + '</div>';
+  timeline.forEach(step => {
+    html += '<div class="sb-tl-step"><span class="sb-tl-time">' + step.t + '</span><span class="sb-tl-icon">' + step.icon + '</span><span class="sb-tl-text">' + step.text + '</span></div>';
+  });
+  html += '</div>';
+
+  html += '</div>';
+
+  // Insert into bottom sheet (after risk chips)
+  const riskChips = document.getElementById('risk-chips');
+  if (riskChips) riskChips.insertAdjacentHTML('afterend', html);
+}
+
+function updateScenarioButton() {
+  const btn = document.getElementById('scenario-btn');
+  if (!btn) return;
+  if (activeScenario) {
+    btn.className = 'btn-scenario active';
+    btn.innerHTML = activeScenario.icon + ' <span>' + activeScenario.name[currentLang] + (currentLang === 'ja' ? ' 発動中' : ' ACTIVE') + '</span>';
+  } else {
+    btn.className = 'btn-scenario';
+    btn.innerHTML = '🌪 <span>' + (currentLang === 'ja' ? '災害シナリオ' : currentLang === 'en' ? 'Disaster Scenario' : '灾害场景') + '</span>';
+  }
+}
+
 /* ── Boot ────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   // Restore preferences
