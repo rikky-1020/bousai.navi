@@ -189,6 +189,11 @@ html,body{height:100%;font-family:var(--fn);background:var(--bg);color:var(--ink
   padding:2px 0;
 }
 .rain-info{margin-top:2px}
+.alert-status{
+  font-size:.5rem;color:var(--ink4);text-align:right;
+  padding:2px 0 0;letter-spacing:.02em;
+}
+.alert-status.offline{color:var(--danger);font-weight:700}
 
 /* Sheet content */
 #sheet-content{
@@ -616,11 +621,13 @@ button:focus:not(:focus-visible) { outline: none; }
 
 /* ── DATA CREDIT ────────────────────────────────────────── */
 #data-credit {
-  font-size: .55rem;
+  font-size: .5rem;
   color: var(--ink4);
   text-align: center;
   padding: 4px 8px 0;
+  line-height: 1.5;
 }
+.credit-warn{color:var(--danger);font-weight:700;font-size:.5rem}
 
 /* ── ACCESSIBLE SHELTER BADGE ────────────────────────────── */
 .si-accessible {

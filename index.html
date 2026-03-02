@@ -65,7 +65,7 @@
     <button class="a11y-btn" id="font-decrease" onclick="decreaseFontSize()" aria-label="文字を小さく">A−</button>
     <button class="a11y-btn" id="font-increase" onclick="increaseFontSize()" aria-label="文字を大きく">A+</button>
     <button class="a11y-btn" id="hc-btn" onclick="toggleHighContrast()" aria-pressed="false" aria-label="ハイコントラスト">◑ コントラスト</button>
-    <small class="settings-ver">v3.0.0</small>
+    <small class="settings-ver">v4.0.0</small>
   </div>
 
   <!-- TICKER (slim) -->
@@ -104,7 +104,10 @@
           <button class="btn-cta" onclick="quickSearch()" data-i18n="searchBtn" aria-label="近くの避難所を自動検索">🔍 近くの避難所を自動検索</button>
           <button class="btn-sec" onclick="goSim()" data-i18n="simBtn" aria-label="避難シミュレーションを始める">🏃 避難シミュレーションを始める →</button>
           <div id="risk-summary" style="display:none" role="region" aria-label="被害予想"></div>
-          <div id="data-credit" aria-label="データ出典">避難所データ：東京都オープンデータ (CC BY 4.0)</div>
+          <div id="data-credit" aria-label="データ出典">
+            避難所：東京都オープンデータ (CC BY 4.0) ｜ 気象：気象庁 ｜ 地震：P2P地震情報<br>
+            <span class="credit-warn">本サービスは参考情報です。災害時は必ず公式情報に従ってください。</span>
+          </div>
         </div>
 
         <!-- SEARCHING -->
