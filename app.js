@@ -70,7 +70,7 @@ const I18N = {
     errGps1:       '⚠ 位置情報の使用が拒否されました。ブラウザの設定を確認してください。',
     errGps2:       '⚠ 位置情報を取得できませんでした。',
     errGps3:       '⚠ タイムアウトしました。もう一度お試しください。',
-    risk:          { flood:'水害', quake:'倒壊', liq:'液状化', tsunami:'津波' },
+    risk:          { flood:'水害', quake:'倒壊', liq:'液状化', tsunami:'津波', landslide:'土砂災害' },
     riskHigh:      '🔴 高危険', riskMid: '🟠 中危険', riskLow: '🟡 要注意',
     riskArea:      'リスクエリア',
     safe: {
@@ -165,7 +165,7 @@ const I18N = {
     errGps1:       '⚠ Location access denied. Check browser settings.',
     errGps2:       '⚠ Could not get location.',
     errGps3:       '⚠ Timed out. Please try again.',
-    risk:          { flood:'Flood', quake:'Collapse', liq:'Liquefaction', tsunami:'Tsunami' },
+    risk:          { flood:'Flood', quake:'Collapse', liq:'Liquefaction', tsunami:'Tsunami', landslide:'Landslide' },
     riskHigh:'🔴 High Risk', riskMid:'🟠 Mid Risk', riskLow:'🟡 Caution',
     riskArea:'Risk Area',
     safe: {
@@ -260,7 +260,7 @@ const I18N = {
     errGps1:       '⚠ 位置权限被拒绝，请检查浏览器设置。',
     errGps2:       '⚠ 无法获取位置信息。',
     errGps3:       '⚠ 超时，请重试。',
-    risk:          { flood:'洪水', quake:'倒塌', liq:'液化', tsunami:'海啸' },
+    risk:          { flood:'洪水', quake:'倒塌', liq:'液化', tsunami:'海啸', landslide:'泥石流' },
     riskHigh:'🔴 高风险', riskMid:'🟠 中风险', riskLow:'🟡 注意',
     riskArea:'风险区域',
     safe: {
@@ -1076,7 +1076,246 @@ const RISK = {
     // 旧データ含む
     [35.610,139.680,.5],[35.618,139.670,.45],
   ], c:{h:'rgba(0,170,150,.52)',m:'rgba(0,145,130,.38)',l:'rgba(0,200,180,.22)'} },
+
+  landslide: { pts:[
+    // 八王子・あきる野・奥多摩（山間部）
+    [35.660,139.310,.85],[35.670,139.280,.8],[35.680,139.250,.85],[35.700,139.230,.75],
+    [35.720,139.200,.8],[35.750,139.170,.85],[35.780,139.130,.8],[35.800,139.100,.9],
+    [35.830,139.080,.85],[35.850,139.095,.8],
+    // 青梅・日の出
+    [35.790,139.260,.7],[35.780,139.300,.65],[35.770,139.340,.6],
+    // 町田・多摩丘陵
+    [35.580,139.440,.65],[35.570,139.420,.6],[35.560,139.400,.7],[35.540,139.380,.65],
+    // 世田谷区（国分寺崖線）
+    [35.640,139.620,.5],[35.635,139.610,.45],[35.630,139.600,.5],
+    // 港区・渋谷区（坂の多い地域）
+    [35.660,139.720,.4],[35.655,139.710,.35],
+    // 北区・板橋区（武蔵野台地の崖）
+    [35.755,139.710,.5],[35.760,139.720,.45],[35.750,139.700,.5],
+    // 練馬区・杉並区（丘陵地）
+    [35.740,139.630,.4],[35.735,139.640,.35],
+  ], c:{h:'rgba(139,90,43,.55)',m:'rgba(160,120,60,.4)',l:'rgba(180,150,90,.25)'} },
 };
+
+/* ── Realtime Disaster Info (気象庁 + P2P地震) ──────────── */
+let realtimeAlerts = [];
+let realtimeQuakes = [];
+const TOKYO_AREA_CODE = '130000'; // 東京都
+
+async function fetchRealtimeDisasterInfo() {
+  // ① 気象庁 警報・注意報
+  try {
+    const res = await fetch('https://www.jma.go.jp/bosai/warning/data/warning/' + TOKYO_AREA_CODE + '.json');
+    if (res.ok) {
+      const data = await res.json();
+      realtimeAlerts = parseJmaWarnings(data);
+      console.log('[Realtime] JMA warnings:', realtimeAlerts.length);
+    }
+  } catch(e) { console.warn('[Realtime] JMA failed:', e.message); }
+
+  // ② P2P地震情報（直近5件）
+  try {
+    const res = await fetch('https://api.p2pquake.net/v2/history?codes=551&limit=5');
+    if (res.ok) {
+      const data = await res.json();
+      realtimeQuakes = parseP2pQuakes(data);
+      console.log('[Realtime] P2P quakes:', realtimeQuakes.length);
+    }
+  } catch(e) { console.warn('[Realtime] P2P failed:', e.message); }
+
+  // リスクレベルを動的に調整
+  applyRealtimeRiskBoost();
+  // UI更新
+  renderRealtimeAlertBanner();
+}
+
+function parseJmaWarnings(data) {
+  const alerts = [];
+  const warnTypes = {
+    '大雨': { risk: 'flood', boost: 0.3, level: 'warn' },
+    '洪水': { risk: 'flood', boost: 0.4, level: 'warn' },
+    '暴風': { risk: 'quake', boost: 0.1, level: 'warn' },
+    '波浪': { risk: 'tsunami', boost: 0.2, level: 'warn' },
+    '高潮': { risk: 'tsunami', boost: 0.3, level: 'warn' },
+    '土砂災害': { risk: 'landslide', boost: 0.4, level: 'danger' },
+  };
+  const specialWarn = {
+    '大雨特別警報': { risk: 'flood', boost: 0.5, level: 'danger' },
+    '大雨警報': { risk: 'flood', boost: 0.3, level: 'danger' },
+    '洪水警報': { risk: 'flood', boost: 0.4, level: 'danger' },
+    '土砂災害警戒情報': { risk: 'landslide', boost: 0.5, level: 'danger' },
+    '暴風警報': { risk: 'quake', boost: 0.15, level: 'warn' },
+    '高潮警報': { risk: 'tsunami', boost: 0.35, level: 'danger' },
+    '津波注意報': { risk: 'tsunami', boost: 0.4, level: 'danger' },
+    '津波警報': { risk: 'tsunami', boost: 0.5, level: 'danger' },
+  };
+
+  try {
+    const areaTypes = data.areaTypes || [];
+    for (const areaType of areaTypes) {
+      for (const area of (areaType.areas || [])) {
+        for (const warning of (area.warnings || [])) {
+          const status = warning.status;
+          if (status === '発表' || status === '継続') {
+            const code = warning.code;
+            const name = warning.name || '';
+            // Check special warnings first
+            for (const [key, info] of Object.entries(specialWarn)) {
+              if (name.includes(key)) {
+                alerts.push({ type: info.risk, name: key, boost: info.boost, level: info.level, area: area.name });
+                break;
+              }
+            }
+            // Then check general warning types
+            for (const [key, info] of Object.entries(warnTypes)) {
+              if (name.includes(key) && !alerts.some(a => a.name.includes(key) && a.area === area.name)) {
+                alerts.push({ type: info.risk, name: key + '注意報', boost: info.boost, level: info.level, area: area.name });
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch(e) { console.warn('[JMA Parse]', e.message); }
+  return alerts;
+}
+
+function parseP2pQuakes(data) {
+  const quakes = [];
+  const now = Date.now();
+  for (const q of data) {
+    if (!q.earthquake) continue;
+    const time = new Date(q.earthquake.time).getTime();
+    const hoursAgo = (now - time) / 3600000;
+    if (hoursAgo > 24) continue; // 24時間以内のみ
+    const mag = q.earthquake.hypocenter?.magnitude || 0;
+    const depth = q.earthquake.hypocenter?.depth || 0;
+    const maxScale = q.earthquake.maxScale || 0;
+    // 東京に影響があるか（震度1以上の報告があるエリアをチェック）
+    let tokyoAffected = false;
+    let tokyoIntensity = 0;
+    for (const point of (q.points || [])) {
+      if (point.pref === '東京都') {
+        tokyoAffected = true;
+        tokyoIntensity = Math.max(tokyoIntensity, point.scale || 0);
+      }
+    }
+    if (tokyoAffected || mag >= 5) {
+      quakes.push({
+        time: q.earthquake.time,
+        mag,
+        depth,
+        maxScale,
+        tokyoIntensity,
+        hoursAgo: Math.round(hoursAgo * 10) / 10,
+        place: q.earthquake.hypocenter?.name || '不明',
+      });
+    }
+  }
+  return quakes;
+}
+
+// リスクデータのベースラインを保持
+let _baseRiskPts = null;
+function applyRealtimeRiskBoost() {
+  // ベースラインを保存（初回のみ）
+  if (!_baseRiskPts) {
+    _baseRiskPts = {};
+    for (const [type, data] of Object.entries(RISK)) {
+      _baseRiskPts[type] = data.pts.map(p => [...p]);
+    }
+  }
+  // ベースラインに戻す
+  for (const [type, data] of Object.entries(RISK)) {
+    if (_baseRiskPts[type]) {
+      data.pts = _baseRiskPts[type].map(p => [...p]);
+    }
+  }
+
+  // 警報によるブースト
+  for (const alert of realtimeAlerts) {
+    if (RISK[alert.type]) {
+      RISK[alert.type].pts = RISK[alert.type].pts.map(([lat, lng, v]) =>
+        [lat, lng, Math.min(1.0, v + alert.boost)]
+      );
+    }
+  }
+
+  // 地震によるブースト
+  for (const q of realtimeQuakes) {
+    if (q.tokyoIntensity >= 10) { // 震度1以上
+      const boost = Math.min(0.3, q.tokyoIntensity * 0.03);
+      const freshness = Math.max(0.2, 1 - q.hoursAgo / 24); // 新しいほど影響大
+      RISK.quake.pts = RISK.quake.pts.map(([lat, lng, v]) =>
+        [lat, lng, Math.min(1.0, v + boost * freshness)]
+      );
+      // 地震後は液状化リスクも上がる
+      RISK.liq.pts = RISK.liq.pts.map(([lat, lng, v]) =>
+        [lat, lng, Math.min(1.0, v + boost * freshness * 0.5)]
+      );
+    }
+  }
+
+  // アクティブなオーバーレイを再描画
+  for (const [type, on] of Object.entries(riskOn)) {
+    if (on) {
+      (riskLayers[type] || []).forEach(c => map.removeLayer(c));
+      delete riskLayers[type];
+      riskOn[type] = false;
+      toggleRisk(type);
+    }
+  }
+}
+
+function renderRealtimeAlertBanner() {
+  let banner = document.getElementById('realtime-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'realtime-banner';
+    const sheet = document.getElementById('bottom-sheet');
+    const riskChips = document.getElementById('risk-chips');
+    if (riskChips) riskChips.after(banner);
+    else if (sheet) sheet.prepend(banner);
+  }
+
+  const T = t();
+  const items = [];
+
+  // 警報情報
+  if (realtimeAlerts.length > 0) {
+    const grouped = {};
+    for (const a of realtimeAlerts) {
+      if (!grouped[a.name]) grouped[a.name] = [];
+      grouped[a.name].push(a.area);
+    }
+    for (const [name, areas] of Object.entries(grouped)) {
+      const level = realtimeAlerts.find(a => a.name === name)?.level;
+      const icon = level === 'danger' ? '🔴' : '🟡';
+      items.push('<div class="alert-item alert-' + level + '">' + icon + ' ' + name + '</div>');
+    }
+  }
+
+  // 地震情報
+  for (const q of realtimeQuakes) {
+    const scaleText = q.tokyoIntensity >= 10
+      ? (currentLang === 'ja' ? '東京 震度' + Math.floor(q.tokyoIntensity / 10) : 'Tokyo Int.' + Math.floor(q.tokyoIntensity / 10))
+      : '';
+    const timeText = q.hoursAgo < 1
+      ? (currentLang === 'ja' ? Math.round(q.hoursAgo * 60) + '分前' : Math.round(q.hoursAgo * 60) + 'min ago')
+      : (currentLang === 'ja' ? Math.round(q.hoursAgo) + '時間前' : Math.round(q.hoursAgo) + 'h ago');
+    items.push('<div class="alert-item alert-quake">🫨 M' + q.mag + ' ' + q.place + ' ' + scaleText + ' <small>' + timeText + '</small></div>');
+  }
+
+  if (items.length === 0) {
+    const safeMsg = currentLang === 'ja' ? '✅ 現在、東京都に警報・注意報は出ていません'
+      : currentLang === 'en' ? '✅ No active warnings for Tokyo'
+      : '✅ 东京都目前没有警报';
+    banner.innerHTML = '<div class="alert-safe">' + safeMsg + '</div>';
+  } else {
+    banner.innerHTML = '<div class="alert-header">' + (currentLang === 'ja' ? '⚡ リアルタイム災害情報' : currentLang === 'en' ? '⚡ Live Disaster Info' : '⚡ 实时灾害信息') + '</div>' + items.join('');
+  }
+  banner.style.display = 'block';
+}
 
 function toggleRisk(type) {
   riskOn[type] = !riskOn[type];
@@ -1352,6 +1591,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (highContrast) document.documentElement.classList.add('high-contrast');
 
   initMap();
+
+  // Fetch realtime disaster info
+  fetchRealtimeDisasterInfo();
+  // Refresh every 5 minutes
+  setInterval(fetchRealtimeDisasterInfo, 5 * 60 * 1000);
 
   // PWA shortcut handling
   const params = new URLSearchParams(location.search);

@@ -166,6 +166,28 @@ html,body{height:100%;font-family:var(--fn);background:var(--bg);color:var(--ink
 .risk-chip.active[data-type=quake]{background:var(--danger-lt);border-color:var(--danger);color:var(--danger)}
 .risk-chip.active[data-type=liq]{background:var(--warn-lt);border-color:var(--warn);color:#8A5E00}
 .risk-chip.active[data-type=tsunami]{background:#E0F5F2;border-color:#00897B;color:#00897B}
+.risk-chip.active[data-type=landslide]{background:#F5EDE0;border-color:#8B5A2B;color:#8B5A2B}
+
+/* Realtime alert banner */
+#realtime-banner{
+  padding:0 12px 6px;flex-shrink:0;
+}
+.alert-header{
+  font-size:.62rem;font-weight:900;color:var(--danger);
+  letter-spacing:.04em;margin-bottom:4px;
+}
+.alert-item{
+  font-size:.62rem;font-weight:700;padding:4px 8px;
+  border-radius:6px;margin-bottom:3px;line-height:1.4;
+}
+.alert-item small{color:var(--ink3);margin-left:4px}
+.alert-danger{background:var(--danger-lt);color:#9A1E1E}
+.alert-warn{background:var(--warn-lt);color:#8A5E00}
+.alert-quake{background:#F3E8FF;color:#6B21A8}
+.alert-safe{
+  font-size:.6rem;font-weight:700;color:var(--safe);
+  padding:2px 0;
+}
 
 /* Sheet content */
 #sheet-content{

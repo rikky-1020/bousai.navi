@@ -6,9 +6,9 @@
      OSM tiles           : Cache First  → 30 days
      External APIs       : Network First → 10 min cache fallback
 ============================================================ */
-const VER        = 'bousai-v9';
-const TILE_CACHE = 'bousai-tiles-v9';
-const API_CACHE  = 'bousai-api-v9';
+const VER        = 'bousai-v10';
+const TILE_CACHE = 'bousai-tiles-v10';
+const API_CACHE  = 'bousai-api-v10';
 
 // GitHub Pages: sw.js は /repo/ 直下に置かれるのでそこを scope にする
 const BASE = self.registration.scope;
@@ -29,6 +29,8 @@ const API_HOSTS  = [
   'router.project-osrm.org',
   'nominatim.openstreetmap.org',
   'opendata.metro.tokyo.lg.jp',   // 東京都オープンデータ
+  'www.jma.go.jp',                // 気象庁
+  'api.p2pquake.net',             // P2P地震情報
 ];
 
 // ── Install ──────────────────────────────────────────────────
