@@ -1123,6 +1123,9 @@ async function fetchRealtimeDisasterInfo() {
     }
   } catch(e) { console.warn('[Realtime] P2P failed:', e.message); }
 
+  // ③ 気象庁 天気予報（雨量推定）
+  await fetchRainfallData();
+
   // リスクレベルを動的に調整
   applyRealtimeRiskBoost();
   // UI更新
@@ -1317,6 +1320,83 @@ function renderRealtimeAlertBanner() {
   banner.style.display = 'block';
 }
 
+/* ── Tokyo River Data (河川氾濫エリア) ───────────────────── */
+const TOKYO_RIVERS = [
+  { name:'荒川', dangerLevel:'high',
+    // 荒川の流路（北区→足立→葛飾→江東→東京湾）
+    path:[[35.800,139.720],[35.795,139.740],[35.785,139.760],[35.778,139.785],[35.770,139.800],
+          [35.755,139.815],[35.740,139.830],[35.720,139.840],[35.700,139.850],[35.680,139.855],
+          [35.660,139.845],[35.640,139.830],[35.625,139.810]],
+    // 浸水想定エリア（河川両岸の低地）
+    floodZone:[
+      // 足立区（荒川西岸）
+      {lat:35.780,lng:139.795,r:800,depth:3.0},{lat:35.770,lng:139.785,r:700,depth:2.5},
+      {lat:35.790,lng:139.780,r:600,depth:2.0},
+      // 北区・荒川区
+      {lat:35.755,lng:139.775,r:600,depth:2.0},{lat:35.745,lng:139.790,r:700,depth:2.5},
+      // 葛飾区
+      {lat:35.750,lng:139.850,r:900,depth:3.5},{lat:35.740,lng:139.840,r:800,depth:3.0},
+      {lat:35.760,lng:139.860,r:700,depth:2.5},
+      // 江東区（ゼロメートル地帯）
+      {lat:35.670,lng:139.820,r:1000,depth:4.0},{lat:35.680,lng:139.835,r:900,depth:3.5},
+      {lat:35.660,lng:139.810,r:800,depth:3.0},{lat:35.655,lng:139.840,r:700,depth:2.5},
+      // 江戸川区
+      {lat:35.710,lng:139.875,r:1000,depth:4.5},{lat:35.700,lng:139.880,r:900,depth:4.0},
+      {lat:35.720,lng:139.885,r:800,depth:3.5},{lat:35.690,lng:139.870,r:700,depth:3.0},
+    ]
+  },
+  { name:'多摩川', dangerLevel:'mid',
+    path:[[35.630,139.300],[35.620,139.400],[35.595,139.500],[35.575,139.600],
+          [35.565,139.680],[35.558,139.720],[35.555,139.750],[35.550,139.775]],
+    floodZone:[
+      // 世田谷区（多摩川沿い）
+      {lat:35.580,lng:139.660,r:500,depth:1.5},{lat:35.575,lng:139.680,r:500,depth:2.0},
+      {lat:35.570,lng:139.700,r:600,depth:2.0},
+      // 大田区
+      {lat:35.565,lng:139.720,r:600,depth:2.5},{lat:35.558,lng:139.740,r:700,depth:2.5},
+      {lat:35.555,lng:139.760,r:600,depth:2.0},
+    ]
+  },
+  { name:'隅田川', dangerLevel:'mid',
+    path:[[35.770,139.740],[35.755,139.755],[35.740,139.770],[35.725,139.785],
+          [35.710,139.795],[35.695,139.790],[35.680,139.785],[35.665,139.780]],
+    floodZone:[
+      {lat:35.720,lng:139.800,r:500,depth:2.0},{lat:35.710,lng:139.795,r:500,depth:2.0},
+      {lat:35.700,lng:139.790,r:400,depth:1.5},{lat:35.730,lng:139.790,r:400,depth:1.5},
+    ]
+  },
+  { name:'神田川', dangerLevel:'low',
+    path:[[35.700,139.600],[35.705,139.650],[35.700,139.700],[35.695,139.750],[35.690,139.770]],
+    floodZone:[
+      {lat:35.705,lng:139.640,r:300,depth:1.0},{lat:35.700,lng:139.680,r:300,depth:1.0},
+      {lat:35.698,lng:139.720,r:300,depth:1.2},
+    ]
+  },
+  { name:'中川・新中川', dangerLevel:'high',
+    path:[[35.780,139.850],[35.760,139.855],[35.740,139.850],[35.720,139.855],
+          [35.700,139.860],[35.680,139.855],[35.660,139.850]],
+    floodZone:[
+      {lat:35.750,lng:139.850,r:700,depth:3.0},{lat:35.730,lng:139.855,r:600,depth:2.5},
+      {lat:35.710,lng:139.860,r:700,depth:3.0},{lat:35.690,lng:139.855,r:600,depth:2.5},
+    ]
+  },
+  { name:'江戸川', dangerLevel:'high',
+    path:[[35.790,139.890],[35.770,139.885],[35.750,139.880],[35.730,139.878],
+          [35.710,139.875],[35.690,139.870],[35.670,139.865]],
+    floodZone:[
+      {lat:35.760,lng:139.885,r:700,depth:3.0},{lat:35.740,lng:139.880,r:800,depth:3.5},
+      {lat:35.720,lng:139.878,r:900,depth:4.0},{lat:35.700,lng:139.875,r:800,depth:3.5},
+    ]
+  },
+  { name:'石神井川', dangerLevel:'low',
+    path:[[35.755,139.600],[35.750,139.640],[35.745,139.680],[35.740,139.720],[35.738,139.740]],
+    floodZone:[
+      {lat:35.752,lng:139.620,r:250,depth:0.8},{lat:35.748,lng:139.660,r:250,depth:0.8},
+    ]
+  },
+];
+
+let riverLayerGroup = null;
 function toggleRisk(type) {
   riskOn[type] = !riskOn[type];
   const chip = document.querySelector('.risk-chip[data-type="' + type + '"]');
@@ -1333,9 +1413,145 @@ function toggleRisk(type) {
       c.on('click', () => c.bindPopup('<div class="pop-inner"><div class="pop-title">' + lv + '</div><div class="pop-sub">' + t().risk[type] + ' ' + t().riskArea + '</div></div>').openPopup());
       return c;
     });
+    // floodの場合、河川ライン＋浸水想定も表示
+    if (type === 'flood') showRiverOverlay();
   } else {
     (riskLayers[type]||[]).forEach(c => map.removeLayer(c));
     delete riskLayers[type];
+    if (type === 'flood') hideRiverOverlay();
+  }
+}
+
+function showRiverOverlay() {
+  hideRiverOverlay();
+  riverLayerGroup = L.layerGroup();
+  const rainBoost = currentRainLevel; // 0〜1 (雨量による倍率)
+
+  TOKYO_RIVERS.forEach(river => {
+    // 河川ライン
+    const baseWidth = river.dangerLevel === 'high' ? 4 : river.dangerLevel === 'mid' ? 3 : 2;
+    const lineColor = river.dangerLevel === 'high' ? '#0055CC' : river.dangerLevel === 'mid' ? '#2277DD' : '#4499EE';
+    const line = L.polyline(river.path, {
+      color: lineColor, weight: baseWidth + rainBoost * 3, opacity: 0.7,
+      dashArray: rainBoost > 0.3 ? null : '8,4', // 雨が強いと実線に
+      interactive: true,
+    });
+    line.bindPopup('<div class="pop-inner"><div class="pop-title">🏞 ' + river.name + '</div><div class="pop-sub">'
+      + (currentLang === 'ja' ? '氾濫危険度: ' : 'Flood risk: ')
+      + (river.dangerLevel === 'high' ? t().riskHigh : river.dangerLevel === 'mid' ? t().riskMid : t().riskLow)
+      + (rainBoost > 0.3 ? '<br>' + (currentLang === 'ja' ? '⚠ 雨量により水位上昇中' : '⚠ Water level rising') : '')
+      + '</div></div>');
+    riverLayerGroup.addLayer(line);
+
+    // 浸水想定エリア
+    river.floodZone.forEach(zone => {
+      const depthFactor = Math.min(1, zone.depth / 5);
+      const radius = zone.r * (1 + rainBoost * 0.5);
+      const opacity = 0.15 + depthFactor * 0.2 + rainBoost * 0.15;
+      const circle = L.circle([zone.lat, zone.lng], {
+        radius,
+        fillColor: depthFactor > 0.6 ? '#0044AA' : depthFactor > 0.3 ? '#2266CC' : '#4488DD',
+        fillOpacity: opacity,
+        color: 'transparent',
+        interactive: true,
+      });
+      const depthText = currentLang === 'ja' ? '想定浸水深: ' + zone.depth + 'm' : 'Est. depth: ' + zone.depth + 'm';
+      circle.bindPopup('<div class="pop-inner"><div class="pop-title">💧 '
+        + (currentLang === 'ja' ? '浸水想定エリア' : 'Flood Zone')
+        + '</div><div class="pop-sub">' + river.name + '<br>' + depthText + '</div></div>');
+      riverLayerGroup.addLayer(circle);
+    });
+  });
+  riverLayerGroup.addTo(map);
+}
+
+function hideRiverOverlay() {
+  if (riverLayerGroup) {
+    map.removeLayer(riverLayerGroup);
+    riverLayerGroup = null;
+  }
+}
+
+/* ── Rainfall data (雨量データ) ──────────────────────────── */
+let currentRainLevel = 0; // 0=晴れ 〜 1=豪雨
+async function fetchRainfallData() {
+  try {
+    // 気象庁 天気予報API（東京: 130000）
+    const res = await fetch('https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json');
+    if (!res.ok) return;
+    const data = await res.json();
+    // 直近の天気コードから雨量を推定
+    const area = data[0]?.timeSeries?.[0]?.areas?.[0];
+    if (!area) return;
+    const weatherCodes = area.weatherCodes || [];
+    const code = weatherCodes[0] || '100';
+    // 天気コード判定 (200番台=曇り, 300番台=雨, 400番台=雪)
+    const codeNum = parseInt(code);
+    if (codeNum >= 300 && codeNum < 400) {
+      // 雨系
+      if (codeNum >= 350) currentRainLevel = 0.8; // 大雨
+      else if (codeNum >= 330) currentRainLevel = 0.6; // 雨時々止む
+      else if (codeNum >= 313) currentRainLevel = 0.5; // 雨後曇
+      else if (codeNum >= 300) currentRainLevel = 0.4; // 雨
+      else currentRainLevel = 0.3;
+    } else if (codeNum >= 200 && codeNum < 300) {
+      // 曇り系（雨の可能性）
+      if (codeNum >= 218) currentRainLevel = 0.2; // 曇り時々雨
+      else currentRainLevel = 0.05;
+    } else {
+      currentRainLevel = 0;
+    }
+
+    // 警報が出ている場合はさらにブースト
+    if (realtimeAlerts.some(a => a.name.includes('大雨') || a.name.includes('洪水'))) {
+      currentRainLevel = Math.min(1.0, currentRainLevel + 0.3);
+    }
+
+    console.log('[Rain] Level:', currentRainLevel, 'code:', code);
+
+    // 雨量によるfloodリスクの動的調整
+    if (currentRainLevel > 0.2 && _baseRiskPts?.flood) {
+      RISK.flood.pts = _baseRiskPts.flood.map(([lat, lng, v]) =>
+        [lat, lng, Math.min(1.0, v + currentRainLevel * 0.3)]
+      );
+      // landslideも雨で上がる
+      if (_baseRiskPts.landslide) {
+        RISK.landslide.pts = _baseRiskPts.landslide.map(([lat, lng, v]) =>
+          [lat, lng, Math.min(1.0, v + currentRainLevel * 0.4)]
+        );
+      }
+    }
+
+    // 表示中のfloodオーバーレイを更新
+    if (riskOn.flood) {
+      (riskLayers.flood || []).forEach(c => map.removeLayer(c));
+      delete riskLayers.flood;
+      riskOn.flood = false;
+      toggleRisk('flood');
+    }
+
+    // アラートバナーに雨量情報追加
+    updateRainBanner();
+  } catch(e) { console.warn('[Rain]', e.message); }
+}
+
+function updateRainBanner() {
+  const banner = document.getElementById('realtime-banner');
+  if (!banner) return;
+  let rainInfo = banner.querySelector('.rain-info');
+  if (!rainInfo) {
+    rainInfo = document.createElement('div');
+    rainInfo.className = 'rain-info';
+    banner.appendChild(rainInfo);
+  }
+  if (currentRainLevel >= 0.5) {
+    const label = currentLang === 'ja' ? '🌧 現在 強い雨が降っています — 河川の増水・浸水に注意' : currentLang === 'en' ? '🌧 Heavy rain — Watch for flooding' : '🌧 大雨中 — 注意洪水';
+    rainInfo.innerHTML = '<div class="alert-item alert-danger">' + label + '</div>';
+  } else if (currentRainLevel >= 0.3) {
+    const label = currentLang === 'ja' ? '🌦 雨が降っています — 河川の水位に注意' : currentLang === 'en' ? '🌦 Rain — Monitor river levels' : '🌦 下雨中 — 注意水位';
+    rainInfo.innerHTML = '<div class="alert-item alert-warn">' + label + '</div>';
+  } else {
+    rainInfo.innerHTML = '';
   }
 }
 

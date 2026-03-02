@@ -188,6 +188,7 @@ html,body{height:100%;font-family:var(--fn);background:var(--bg);color:var(--ink
   font-size:.6rem;font-weight:700;color:var(--safe);
   padding:2px 0;
 }
+.rain-info{margin-top:2px}
 
 /* Sheet content */
 #sheet-content{
